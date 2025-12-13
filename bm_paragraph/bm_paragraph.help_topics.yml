@@ -1,0 +1,6 @@
+bm_paragraph.overview:
+  class: 'Drupal\help\HelpTopicTwig'
+  title: 'Paragraph Helpers (Blue Marloc)'
+  category: 'Development'
+  top_level: true
+  weight: 0

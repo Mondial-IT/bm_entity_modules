@@ -1,0 +1,31 @@
+---
+label: 'Paragraph Helpers (Blue Marloc)'
+top_level: true
+related: []
+---
+<h2>Purpose</h2>
+<p>Provides shared helper utilities for Drupal Paragraphs entities used across Blue Marloc modules.</p>
+
+<h2>Available helpers (service: <code>bm_paragraph.helper</code>)</h2>
+<ul>
+  <li><code>getNodeParagraphsTermsField(node, node_field, paragraph_field, term_field)</code> — collect values from term fields on paragraphs.</li>
+  <li><code>getNodeParagraphsTerms(node, node_field, paragraph_field)</code> — fetch term entities referenced by paragraphs.</li>
+  <li><code>getNodeParagraphs(node, node_field)</code> — paragraphs keyed by ID.</li>
+  <li><code>getParagraphField(paragraph, field)</code> — raw field values.</li>
+  <li><code>getParagraphId(paragraph)</code> — numeric ID.</li>
+  <li><code>getParagraphType(paragraph)</code> — bundle machine name.</li>
+  <li><code>getParagraphTermsName(paragraph, field)</code> — names of referenced terms.</li>
+  <li><code>getParagraphDatefieldLocale(paragraph, field)</code> — locale-formatted date string.</li>
+  <li><code>getParagraphCreatedTimestamp(paragraph)</code> — created timestamp.</li>
+  <li><code>getParagraphCreatedLocale(paragraph)</code> — locale-formatted created date.</li>
+</ul>
+
+<h2>Usage</h2>
+<pre><code class="language-php">$helper = \Drupal::service('bm_paragraph.helper');
+$paragraphs = $helper->getNodeParagraphs($node, 'field_sections');
+$date = $helper->getParagraphDatefieldLocale(reset($paragraphs), 'field_event_date');</code></pre>
+
+<h2>Dependencies</h2>
+<ul>
+  <li>Drupal Paragraphs module (<code>paragraphs</code>)</li>
+</ul>

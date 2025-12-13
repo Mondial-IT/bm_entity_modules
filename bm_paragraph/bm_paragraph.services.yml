@@ -1,0 +1,5 @@
+services:
+  bm_paragraph.helper:
+    class: Drupal\bm_paragraph\ParagraphHelper
+    public: true
+    arguments: ['@date.formatter']

@@ -1,0 +1,7 @@
+name: Mondial-IT Paragraph Helpers
+type: module
+description: Common paragraph helper utilities shared across Blue Marloc modules.
+package: Mondial-IT
+core_version_requirement: ^11
+dependencies:
+  - paragraphs:paragraphs
