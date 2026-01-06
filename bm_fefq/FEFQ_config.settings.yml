@@ -1,0 +1,4265 @@
+# in FieldsEnabledForQueries taxonomy (FEFQ), virtual-'fields' are defined which the user can query (use in various ways).
+# @see MP-A-374 FEFQ Using virtual-'fields' for queries, edits, reports.
+# Fields Enabled For Queries (FEFQ) Configuration
+
+# ================================================
+# FEFQ enables querying, editing, and reporting on Drupal data fields in a unified manner, regardless of complexity.
+# Below are rules and guidelines for defining entries, managing configurations, and utilizing the data structure.
+#
+# **Key Concepts:**
+# 1. **Main Types:**
+#    - Regular Taxonomies: Simple taxonomies without "__" in their `name`.
+#    - Constructs: Prefixed with "construct__", group fields or taxonomies for user-friendly queries.
+#    - Entities and Fields: Direct access to entity fields, often complex chains of data fields.
+#    - Components: Front-end elements (e.g., text inputs, date pickers).
+#
+# 2. **Field Path Structure:**
+#    - Format: [field_name][cardinality]<bundle:type>->[child_field]
+#    - Examples:
+#        - `field_listing_tags[multiple]<tag:taxonomy_term>`
+#        - `field_listing_tags->field_parent_tag`
+#
+# **Rules for Definitions:**
+# - `name`: Unique identifier, typically `construct__{type}__{comment}`.
+# - `type`: Indicates entity type (`taxonomy_term`, `paragraph`, `sql`, `IGNORE`).
+# - `field`: Machine-readable field name. Complex paths are explained in comments.
+# - `redirect`: Points to another entry for reusability; overrides are allowed.
+# - `conditions`: Allowed query conditions (e.g., `IN`, `IS NULL`).
+# - `depth`: Specifies taxonomy depth for hierarchical filters.
+# - `user_label`: Translatable labels (`en`, `nl`, `fr`).
+# - `table`: Specifies the database table associated with the field.
+
+# Example Hierarchical Select entries:
+# ----------------
+# **Regular Taxonomy Example:**
+# - name: construct__listing__field_listing_tags
+
+## - queries this `table`->`field`
+#   field: field_listing_tags_target_id
+#   table: node__field_listing_tags
+
+## - uses info from the listing.entity yml
+#   redirect: listing.entity
+
+#   use_filter: TAXONOMY_REFERENCE
+
+# - translations
+#   user_label:
+#     -1: Tags in listings
+#     en: Tags in listings
+
+# **Construct Example:**
+# - name: construct__filter_group__location
+#   redirect: listing_locations
+#   depth: 0
+#   conditions:
+#     - IS NOT NULL
+
+# **Complex Field Example:**
+# - name: construct__listing__field_listing_canvas_tags_campaign_1
+#   field: field_listing_canvas_tags_target_id
+#   table: node__field_listing_canvas_tags
+#   redirect: listing.entity
+#   use_filter: TAXONOMY_REFERENCE_1_UP
+#   user_label:
+#     -1: Listing Campaigns
+#     en: Listing Campaigns
+
+#
+# These 'fields' in reality consist of taxonomies, hierarchical taxonomies, text fields, date and numerical fields
+# and even of constructs of multiple fields in various content types and entities. For user, it doesn't matter,
+# how or where the data is stored. The FEFQ displays one front for accessing and using complex data. It opens up
+# all data for users to use.
+#
+# The FEFQ terms come in main types:
+
+## used to create hierarchical selects of like information
+## for example group amenities taxo, and other taxonomies details in an HS.
+# -  Constructs:              construct__{this yml identifier}__{comment}
+
+##
+# -  Entities:                and how to use their fields
+
+##
+# -  Actual fields:           real field names or combinations of them
+
+##
+## taxonomies to use directly in selects of HS.
+# -  Regular taxonomy names:  (identified by not having __ in the name)
+#
+# ## BMListingEntityQuery - QUERYING THE DATA
+#
+# When `BMListingEntityQuery` constructs listing queries, it uses the settings found here
+# to match the FEFQ values with the field conditions.
+#
+# ### Terminology:
+# * HS i.e. Hierarchical Select, the Blue Marloc created Hierarchical Select
+#
+# ### Arguments
+#
+# name: the machine name of the term in FEFQ.
+#   In FEFQ via the taxonomy, BM makes the selection filters available, where the HS is initialized with the TID
+#   in practice, the taxonomies themselves can not provide all information needed for the HS displays
+#   in practice, there is also a need to group taxonomies together under a new HS
+#     for example Nacebel and other code taxonomies are grouped under a code hierarchical select
+#     for the admin benefit, these terms in FEFQ taxonomy,
+#       can be dragged into the desired hierarchies creating user-friendly groups
+
+# name: construct__filter_group__{comment}
+#     this grouping is done in terms named construct__filter_group.
+#       They follow the pattern construct__filter_group__listing_category (construct, filter_group, taxonomy)
+#       in this yml, you find constructs with IGNORE and constructs which can be queried (have options) using
+#       'redirect' to real fields.
+#
+#
+# type: vocabulary|IGNORE
+# hierarchical: true|false, absent
+# base_level: 0..9 the level of the taxonomy placed in the listing field. f.x. canvass is in listings, is base_level 2
+# conditions: IN, NOT IN, IS NULL, IS NOT NULL, =, >=, ... the allowed conditions
+# user_label: en:|nl:|fr:| -1 'translation of the taxonomy', 0 translation of taxonomy level 0, 1, translation of taxonomy level 1, etc
+#
+# field: machine name of the field in listings
+#   it should be an entity_query valid description of the field to query
+#   note for taxonomy fields, the code adds code for parents, grandparents, great grand etc based on `depth`
+#   fields can be complex like listing field with reference to paragraph referencing a taxonomy field
+#   `field_listing_interact_log.entity.field_para_interaction_reference.entity.field_interaction_raw_log.value`
+#
+# table: database name of a table, used in queries with special table requirements. (paragraph fields f.x.)
+#
+# depth: 0,1,2, etc. In relation to base_level, how far up, this fields lineage must be created for the field.
+#   note example country, province, city. City is in de listing fields, Then to get provinces it has depth 1, country depth 2.
+#   so it is the x-up parent of the listing field tid
+#
+# redirect: name somewhere else in yml. Means this name uses the same definition as used elsewhere
+#   note properties following redirect, override the properties of the redirected entry
+#   Example:
+#     - name: construct__filter_group__campaign
+#       redirect: company_campaign_canvas_tags
+#       depth: 1
+#
+# an entry in FEFQ named construct__filter_group__campaign, has Tid, which can be used to create a hierarchical select
+#   this select will actually use company_campaign_canvas_tags taxonomy and its field definitions
+#   as it displays campaigns, it changes the depth to 1 (canvass is in the listing field, campaign is virtual)
+#
+# alternatives: string, default absent, name of another entry
+#   when the same taxonomy is used by multiple fields the key "alternative" should be in the
+#   name of another parent term in the chain when the entry is being looked for, it will then check for alternatives
+#   (a hierarchical select will contain the parent term from FEFQ taxonomy, which identifies this entry)
+#   alternatives: construct__interaction_status_tags__field_para_interaction_status
+#   informs there is another field also using interaction_status_tags as field values.
+#
+# component: name somewhere else of a component definition to show as endpoint. For example on a date field the component input_date
+# -  sql: a sql statement
+# -  redirect: use the other info from the redirected component
+#
+# sql:      > followed by an MYSQL valid statement to retrieve nids, or other
+#           in the sql :TABLE, :FIELD, :CONDITION, :VALUES are replaced with the entries for table and field. values is replaced with the select value
+#
+# conditions: as described before. Can contain a sql snip which will be inserted in sql statement replacing :CONDITION
+#
+# filters:  this data defines how to display a hierarchical select for this field.
+#           note - the before mentioned sql and conditions are used to define how to count or list listings.
+#           below the filters is defined how hierarchical select can be created using field values for users to build filters with.
+#           note the use of :LANGUAGE to use the right locale
+#
+#   DEFAULT:
+#     sql:  > the sql to create a nid list of or a tid list
+#     fetchKey: this parameter informs how to handle the query result (@see BMFieldsEnabledForQueries.php)
+#         nid returns nid, code collects title,
+#         target_id returns a tid, code collects the name
+#         uid returns uid, code this collects the user name
+#         key_label returns integer|label, code makes it HS ready
+# @see construct__listing_interaction_paragraph__field_para_interaction_moment__by_week
+#
+# @see:  construct__hierarchical_select__field_para_interaction_canvass
+#   which displays the canvasses available in field_para_interaction_canvass of listings
+#
+# construct__component__{comment}
+# this is a special type (code to be extracted into component module out).
+#  which defines how to display a component like a `text input` or a `date input` to filter values in fields.
+#
+# @see: construct__component__call_spoken_with_job_title, which defined component, redirect to component__text_input
+# @see: component__text_input
+#
+# component: defines the component properties (defined in admin_buttons taxonomy as well.)
+#   type: fefq-component
+#   user_label: label above the component
+#   placeholder: placeholder
+#   tippy: tooltip
+#
+#
+# aggrid_shared_definitions: defines how fields are displayed and edited in table select forms using aggrid.
+#
+
+query_field_relation:
+  - name: construct__filter_group
+    type: IGNORE
+
+  - name: construct__filter_group__listing_category
+    type: IGNORE
+
+  - name: construct__filter_group__properties
+    type: IGNORE
+
+  - name: construct__filter_group__codes
+    type: IGNORE
+
+  - name: construct__filter_group__rating
+    type: IGNORE
+
+  - name: construct__filter_group__relations
+    type: IGNORE
+
+  - name: construct__filter_group__ownership
+    type: IGNORE
+
+  - name: construct__filter_group__team
+    type: IGNORE
+
+  - name: construct__filter_group__interaction_status
+    type: IGNORE
+
+  - name: construct__filter_group__interaction_records
+    type: IGNORE
+
+  - name: construct__filter_group__Listing_interaction_paragraph
+    type: IGNORE
+
+  - name: construct__filter_group__taxonomy_overview
+    type: IGNORE
+
+  - name: construct__filter_group__call_reports
+    type: IGNORE
+
+  - name: construct__filter_group__submission_admin
+    type: IGNORE
+  #
+  # key `redirect`, is a shortcode to use another entry as the basis
+  # with the overrides provided in this name, in this case depth:0
+  # key 'special', this must match with code, and signals a special
+  # operations is needed to filter listings on this entry
+  # key 'operations', must match with code. Signals special functions
+  # to be applied. See BMListingFEFQInterface class.
+  - name: construct__filter_group__location
+    redirect: listing_locations
+    depth: 0
+    conditions:
+      - IS NOT NULL
+
+  ######################################################################################################################ACCOUNT
+  # is being used by set_canvass_selector, retrieves the canvasses as enabled in the user profile.
+  - name: construct__account__available_canvasses
+    type: sql
+    field: field_company_campaign_canvas_ta_target_id
+    table: user__field_company_campaign_canvas_ta
+    filters:
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: "Available canvasses"
+      en: "Available canvasses"
+      nl: "Canvass keuze"
+
+
+component2:
+# displays a text input component
+# a component definition from the admin_buttons taxonomy (to be renamed to components)
+# uses BMComponents, Components\templates\text-input.html.twig
+
+# special filters:
+# %text% becomes LIKE %text%%
+# uses FROM_TO, AFTER, BEFORE when text input contains ...
+# "dddd...eeee", "dddd...", "...eeee"
+# @see BMListingFEFQInterface line 563
+  - name: component__text_input
+    component:
+      # text-input.html.twig
+      name: text-input
+      type: fefq-component
+      user_label:
+        en: 'Enter search text'
+        nl: 'Zoek tekst'
+        fr: 'Saisie de texte'
+      placeholder:
+        en: 'contains this text'
+        nl: 'bevat deze tekst'
+        fr: 'contient ce texte'
+      tippy:
+        en: 'Enter the text which occurs in the search field. <br>use for text: %text%<br> use for ids: 9999..., ....9999, 9999...9999'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+
+# displays a single date entry component
+# text containing ~ is interpreted as from~to
+  - name: component__date_input
+    component:
+      # date-input.html.twig
+      name: date-input
+      type: fefq-component
+      user_label:
+        en: 'Enter a date'
+        nl: 'Een datum'
+        fr: 'Saisie ?'
+      placeholder:
+        en: 'YYYY-MM-DD'
+        nl: 'jjjj-mm-dd'
+        fr: 'YYYY-MM-DD'
+      tippy:
+        en: 'Enter the date'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+#
+# - 2022-11-15T10:06:00+0100
+# - redirect: component__date_time_input_from_to
+#
+# displays a from-date-entry and a to-date-entry component
+  - name: component__date_input_from_to
+    component:
+      # date-input-from-to.html.twig
+      name: date-input-from-to
+      type: fefq-component
+      user_label:
+        en: 'Enter from and to date'
+        nl: 'Datum van tot'
+        fr: 'Saisie ?'
+      placeholder:
+        en: 'YYYY-MM-DD'
+        nl: 'jjjj-mm-dd'
+        fr: 'YYYY-MM-DD'
+      tippy:
+        en: 'Enter the first and last dates'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+
+  - name: construct__component__text_input
+    redirect: component__text_input
+
+  - name: construct__component__date_input_from_to
+    redirect: component__date_input_from_to
+
+entity_listing:
+######################################################################################################################LISTING
+  # THE GENERAL PLACEHOLDER DEFINITION FOR ALL
+  - name: listing.entity
+    type: sql
+    field: body
+    # select NID sql
+    sql: >
+      SELECT distinct base_table.nid AS nid FROM node AS base_table
+      INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+      LEFT JOIN :TABLE ON :TABLE.entity_id = base_table.nid
+      WHERE (node_field_data.status = '1')
+        AND (node_field_data.type = 'listing')
+        AND :CONDITION
+    conditions:
+      IN:
+        :TABLE.:FIELD IN (:VALUES)
+      NOT IN:
+        :TABLE.:FIELD NOT IN (:VALUES)
+      IS NULL:
+        :TABLE.:FIELD IS NULL
+      IS NOT NULL:
+        :TABLE.:FIELD IS NOT NULL
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    # is usually overridden by fields indicating the right method
+    use_filter: DEFAULT
+    # various ways to create hierarchical select tid:labels
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT:
+        sql: >
+            select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      # Must return taxonomy level 2, 0 and 1 are above it.
+      TAXONOMY_REFERENCE_0_UP:
+        sql: >
+          select distinct :TABLE.:FIELD as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent tid to return; company campaign canvass return campaigns
+      TAXONOMY_REFERENCE_1_UP:
+        sql: >
+          select distinct parent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent which has parent tid to return; company campaign canvass return companies
+      TAXONOMY_REFERENCE_2_UP:
+        sql: >
+          select distinct grandparent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      STRING_VALUE:
+        sql: >
+          select distinct :FIELD as text from :TABLE
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as integer from :TABLE
+        fetchKey: target_id
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+  - name: listing
+
+  - name: field__listing__title
+    field: title
+    user_label:
+      en: Title
+
+  - name: construct__listing__changed
+    field: node_field_data.changed
+    table: node_field_data
+    redirect: listing.entity
+    use_filter: COMPONENT_DATE_INPUT_FROM_TO
+
+  - name: construct__listing__language
+    field: node_field_data.langcode
+    table: node_field_data
+    redirect: listing.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Language
+
+#   alias for FIELD__LISTING_LOCATION__CITY
+  - name: field__listing__field_listing_location
+    field: field_listing_location
+    user_label:
+      en: 'Listing City'
+    tippy:
+      en: 'City location component'
+    aggrid:
+      redirect: aggrid_select_field
+
+  # returns whatever is in the field
+  - name: construct__listing__field_listing_location_city
+    field: field_listing_location_target_id
+    type: taxonomy_term
+    table: node__field_listing_location
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Listing City
+      en: Listing City
+    aggrid:
+      redirect: aggrid_select_field
+
+  # returns whatever is in the field
+  - name: construct__listing__field_listing_location_province
+    field: field_listing_location_target_id
+    type: taxonomy_term
+    table: node__field_listing_location
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE_1_UP
+    user_label:
+      -1: Listing Province
+      en: Listing Province
+    aggrid:
+      redirect: aggrid_select_field
+  #
+  - name: construct__listing__field_listing_location_country
+    field: field_listing_location_target_id
+    type: taxonomy_term
+    table: node__field_listing_location
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE_2_UP
+    user_label:
+      -1: Listing Country
+      en: Listing Country
+    aggrid:
+      redirect: aggrid_select_field
+
+# we also have fields for the address directly on the listing node (not using location hierarchy)
+  - name: construct__listing__field_listing_country
+    redirect: listing.entity
+    field: field_listing_country_value
+    type: taxonomy_term
+    table: node__field_listing_country
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_country
+    field: field_listing_country
+    user_label:
+      -1: Listing Country
+      en: Listing Country
+  #
+  - name: construct__listing__field_listing_province
+    redirect: listing.entity
+    field: field_listing_province_value
+    type: string
+    table: node__field_listing_province
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_province
+    field: field_listing_province
+    type: string
+    user_label:
+      -1: Listing Province
+      en: Listing Province
+
+  # node field not location term
+  - name: construct__listing__field_listing_city
+    redirect: listing.entity
+    field: field_listing_city_value
+    table: node__field_listing_city
+    use_filter: COMPONENT_TEXT_INPUT
+
+  # node field not location term
+  - name: field__listing__field_listing_city
+    field: field_listing_city
+    user_label:
+      en: 'City'
+    tippy:
+      en: 'City component'
+    aggrid:
+      redirect: aggrid_html_field
+
+
+
+  # returns whatever is in the field
+  - name: construct__listing__field_listing_canvas_tags
+    field: field_listing_canvas_tags_target_id
+    table: node__field_listing_canvas_tags
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Listing Comp,Camp,Canvass
+      en: Listing Comp,Camp,Canvass
+
+  # returns level 0 i.e. canvass
+  - name: construct__listing__field_listing_canvas_tags_canvass_0
+    field: field_listing_canvas_tags_target_id
+    table: node__field_listing_canvas_tags
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE_0_UP
+    user_label:
+      -1: Listing Canvasses
+      en: Listing Canvasses
+
+  - name: construct__listing__field_listing_canvas_tags_campaign_1
+    field: field_listing_canvas_tags_target_id
+    table: node__field_listing_canvas_tags
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE_1_UP
+    user_label:
+      -1: Listing Campaigns
+      en: Listing Campaigns
+
+  - name: construct__listing__field_listing_canvas_tags_company_2
+    field: field_listing_canvas_tags_target_id
+    table: node__field_listing_canvas_tags
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE_2_UP
+    user_label:
+      -1: Listing Company
+      en: Listing Company
+
+
+  - name: construct__listing__field_listing_amenities
+    field: field_listing_amenities_target_id
+    table: node__field_listing_amenities
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Amenities in listings
+      en: Amenities in listings
+
+  - name: field__listing__field_listing_amenities
+    field: field_listing_amenities
+    user_label:
+      en: Amenities
+    aggrid:
+      redirect: aggrid_select_field
+
+  - name: construct__listing__field_chain
+    field: field_chain_target_id
+    redirect: listing.entity
+    table: node__field_chain
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Chains in listings
+      en: Chains in listings
+    aggrid:
+      redirect: aggrid_select_field
+
+  - name: construct__listing__field_listing_category
+    field: field_listing_category_target_id
+    redirect: listing.entity
+    table: node__field_listing_category
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Category in listings
+      en: Category in listings
+    aggrid:
+      redirect: aggrid_select_field
+
+# these are tags used by data production to signal listing status (or problems)
+  - name: construct__listing__field_listing_status
+    field: field_listing_status_target_id
+    redirect: listing.entity
+    table: node__field_listing_status
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Status in listings
+      en: Status in listings
+
+  - name: construct__listing__field_listing_supplier_of
+    field: field_listing_supplier_of_target_id
+    redirect: listing.entity
+    table: node__field_listing_supplier_of
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Listing supplier of in listings
+      en: Listing supplier of in listings
+    aggrid:
+      redirect: aggrid_select_field
+
+  - name: construct__listing__field_listing_tags
+    field: field_listing_tags_target_id
+    redirect: listing.entity
+    table: node__field_listing_tags
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Tags in listings
+      en: Tags in listings
+    aggrid:
+      redirect: aggrid_select_field
+
+  - name: construct__listing__field_listing_nacebel_code
+    field: field_listing_nacebel_code_target_id
+    redirect: listing.entity
+    table: node__field_listing_nacebel_code
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Nacebel codes in listings
+      en: Nacebel codes in listings
+    aggrid:
+      redirect: aggrid_select_field
+
+  - name: construct__listing__field_listing_stars_ref
+    field: field_listing_stars_ref_target_id
+    redirect: listing.entity
+    table: node__field_listing_stars_ref
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Stars in listings
+      en: Stars in listings
+
+  - name: construct__listing__field_listing_etl_sheetname
+    field: field_listing_etl_sheetname_target_id
+    table: node__field_listing_etl_sheetname
+    redirect: listing.entity
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: ETL Sheetname
+      en: ETL Sheetname
+
+  - name: construct__listing__field_bm_id
+    redirect: listing.entity
+    field: field_bm_id_value
+    table: node__field_bm_id
+    use_filter: COMPONENT_TEXT_INPUT
+
+# the Google places identifier
+  - name: construct__listing__field_listing_place_id
+    redirect: listing.entity
+    field: field_listing_place_id_value
+    table: node__field_listing_place_id
+    # this is actually more the GooglePlaces module and search form
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: Place Id
+      en: Place Id
+
+  - name: field__listing__field_listing_place_id
+    field: field_listing_place_id
+
+
+  - name: construct__listing__field_campaigns_migration_source
+    redirect: listing.entity
+    field: field_campaigns_migration_source_value
+    table: node__field_campaigns_migration_source
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: Admin raw listing migration data
+      en: Admin raw listing migration data
+    tippy:
+      -1: This is the raw source data used to load the listing. Use %text% as wildcards.
+      en: This is the raw source data used to load the listing. Use %text% as wildcards.
+      nl: This is the raw source data used to load the listing. Use %text% as wildcards.
+      fr: This is the raw source data used to load the listing. Use %text% as wildcards.
+
+  - name: construct__listing__field_listing_phone
+    redirect: listing.entity
+    field: field_listing_phone_value
+    table: node__field_listing_phone
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_phone
+    field: field_listing_phone
+    user_label:
+      en: Phone number
+    tippy:
+      en: yml The phonenumber in a listing
+# not implemented yet, see NodeTableSelectTemplateForm
+    tooltipText:
+      en: 'bgcolor-lightgreen: last 7 digit match;bgcolor-green:Phone numbers match'
+# definition of how it is displayed in a form table select
+    aggrid:
+      redirect: aggrid_html_field
+
+
+  # opening hours text field
+  - name: construct__listing__field_listing_time
+    redirect: listing.entity
+    field: field_listing_time_value
+    table: node__field_listing_time
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      en: Opening hours
+
+
+  - name: construct__listing__field_listing_address
+    redirect: listing.entity
+    field: field_listing_address_value
+    table: node__field_listing_address
+    use_filter: COMPONENT_TEXT_INPUT
+
+# the simple version, directly from node
+  # value getter
+  - name: field__listing__field_listing_address
+    field: field_listing_address
+    user_label:
+      -1: Address
+      en: Address
+    tippy:
+      -1: Listing address
+      en: Listing address
+
+  - name: construct__listing__field_listing_postcode
+    redirect: listing.entity
+    field: field_listing_postcode_value
+    table: node__field_listing_postcode
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_postcode
+    field: field_listing_postcode
+
+  - name: construct__listing__field_listing_province
+    redirect: listing.entity
+    field: field_listing_province_value
+    table: node__field_listing_province
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_province
+    field: field_listing_province
+
+
+  - name: construct__listing__field_listing_street
+    redirect: listing.entity
+    field: field_listing_street_value
+    table: node__field_listing_street
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: field__listing__field_listing_street
+    field: field_listing_street
+    user_label:
+      en: 'Street YML'
+    tippy:
+      en: 'Street component'
+    aggrid:
+      redirect: aggrid_html_field
+      gridOptions:
+        columnDefs:
+          editable: TRUE
+
+
+  - name: construct__listing__field_listing_tagline
+    redirect: listing.entity
+    field: field_listing_tagline_value
+    table: node__field_listing_tagline
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__listing__field_listing_video
+    redirect: listing.entity
+    field: field_listing_video_value
+    table: node__field_listing_video
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__listing__field_nace_code
+    redirect: listing.entity
+    field: field_nace_code_value
+    table: node__field_nace_code
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__listing__field_listing_facebook
+    redirect: listing.entity
+    field: field_listing_facebook_value
+    table: node__field_listing_facebook
+    use_filter: COMPONENT_TEXT_INPUT
+    isFEFQ: true
+
+  - name: construct__listing__field_listing_google
+    redirect: listing.entity
+    field: field_listing_google_value
+    table: node__field_listing_google
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__listing__field_listing_linkedin
+    redirect: listing.entity
+    field: field_listing_linkedin_value
+    table: node__field_listing_linkedin
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__listing__field_listing_twitter
+    redirect: listing.entity
+    field: field_listing_twitter_value
+    table: node__field_listing_twitter
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: Listing twitter
+      en: Listing twitter
+
+  - name: construct__listing__field_listing_email
+    redirect: listing.entity
+    field: field_listing_email_value
+    table: node__field_listing_email
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: email addresses in listings
+      en: email addresses in listings
+    tippy:
+      -1: Search email addresses of listings
+      en: Search email addresses of listings
+
+  - name: field__listing__field_listing_email
+    field: field_listing_email
+    user_label:
+      -1: email addresses in listings
+      en: email addresses in listings
+    tippy:
+      -1: Search email addresses of listings
+      en: Search email addresses of listings
+
+  - name: construct__listing__field_listing_website
+    redirect: listing.entity
+    field: field_listing_website_value
+    table: node__field_listing_website
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: Website in listings
+      en: Website in listings
+    tippy:
+      -1: Search website names of listings
+      en: Search website names of listings
+
+  - name: field__listing__field_listing_website
+    field: field_listing_website
+    user_label:
+      -1: Website in listings
+      en: Website in listings
+    tippy:
+      -1: Search website names of listings
+      en: Search website names of listings
+
+  - name: construct__listing__field_listing_map__name
+    redirect: listing.entity
+    field: field_listing_map_name
+    table: node__field_listing_map
+    use_filter: STRING_VALUE
+
+  - name: construct__listing__field_listing_map__lat
+    redirect: listing.entity
+    field: field_listing_map_lat
+    table: node__field_listing_map
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      en: Latitude
+    tippy:
+      en: 'Enter latitude. Optional: &gt;=51.21 or: &lt;=51.4 or both: &gt;=51.21,&lt;=51.4'
+    placeholder:
+      en: '>=5.21, <=51.4'
+
+  - name: construct__listing__field_listing_map__lon
+    redirect: listing.entity
+    field: field_listing_map_lat
+    table: node__field_listing_map
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      en: Longitude
+    tippy:
+      en: 'Enter longitude. Optional: &gt;=4.77 or: &lt;=5 or both: &gt;=4.77,&lt;=5'
+    placeholder:
+      en: '>=4.77, <=5'
+
+  - name: construct__listing__field_listing_map__marker
+    redirect: listing.entity
+    field: field_listing_map_marker
+    table: node__field_listing_map
+    use_filter: STRING_VALUE
+
+  - name: construct__listing__field_listing_map__marker_icon
+    redirect: listing.entity
+    field: field_listing_map_marker_icon
+    table: node__field_listing_map
+    use_filter: STRING_VALUE
+
+  - name: construct__listing__field_listing_map__traffic
+    redirect: listing.entity
+    field: field_listing_map_traffic
+    table: node__field_listing_map
+    use_filter: STRING_VALUE
+
+###################################################################################################DATALINK PARAGRAPH
+
+  # datalink paragraph, the field where we have link to
+  - name: construct__listing__paragraph__field_field_name
+    redirect: listing.entity
+    field: field_field_name_value
+    table: paragraph__field_field_name
+    use_filter: STRING_VALUE
+    tippy:
+      en: The <b>field name</b> where a datalink is created for.
+
+  - name: construct__listing__paragraph__field_datasource
+    redirect: listing.entity
+    field: field_datasource_target_id
+    table: paragraph__field_datasource
+    use_filter: TAXONOMY_REFERENCE
+    tippy:
+      en: The <b>datasource</b> of the datalink field.
+
+  - name: construct__listing__paragraph__field_datalink_path
+    redirect: listing.entity
+    field: field_datalink_path_value
+    table: paragraph__field_datalink_path
+    use_filter: COMPONENT_TEXT_INPUT
+    tippy:
+      en: The <b>link path</b> of a data field where a link is created to
+
+      # specifics paragraph with hotel info
+  - name: hotel_listing_paragraph.entity
+    field: hotel_listing_paragraph.entity
+
+  - name: field__listing__p__field_hotel_journal
+    field: field_listing_specifics_para.entity.field_hotel_journal
+# note the name fix, appartments to apartments.
+  - name: field__listing__p__field_para_hotel_apartments
+    field: field_listing_specifics_para.entity.field_para_hotel_appartments
+  - name: field__listing__p__field_para_hotel_bike_info_copy
+    field: field_listing_specifics_para.entity.field_para_hotel_bike_info_copy
+  - name: field__listing__p__field_para_hotel_ebike_situation
+    field: field_listing_specifics_para.entity.field_para_hotel_ebike_situation
+  - name: field__listing__p__field_para_hotel_established_yr
+    field: field_listing_specifics_para.entity.field_para_hotel_established_yr
+  - name: field__listing__p__field_para_hotel_fullaccommodati
+    field: field_listing_specifics_para.entity.field_para_hotel_fullaccommodati
+  - name: field__listing__p__field_para_hotel_link_bike_info
+    field: field_listing_specifics_para.entity.field_para_hotel_link_bike_info
+  - name: field__listing__p__field_para_hotel_name
+    field: field_listing_specifics_para.entity.field_para_hotel_name
+  - name: field__listing__p__field_para_hotel_name_other
+    field: field_listing_specifics_para.entity.field_para_hotel_name_other
+  - name: field__listing__p__field_para_hotel_no_locations
+    field: field_listing_specifics_para.entity.field_para_hotel_no_locations
+  - name: field__listing__p__field_para_hotel_no_of_reviews
+    field: field_listing_specifics_para.entity.field_para_hotel_no_of_reviews
+  - name: field__listing__p__field_para_hotel_number_of_rooms
+    field: field_listing_specifics_para.entity.field_para_hotel_number_of_rooms
+  - name: field__listing__p__field_para_hotel_rating_byguests
+    field: field_listing_specifics_para.entity.field_para_hotel_rating_byguests
+  - name: field__listing__p__field_para_hotel_rating_other
+    field: field_listing_specifics_para.entity.field_para_hotel_rating_other
+  - name: field__listing__p__field_para_hotel_stars_booking
+    field: field_listing_specifics_para.entity.field_para_hotel_stars_booking
+  - name: field__listing__p__field_para_hotel_stars_official
+    field: field_listing_specifics_para.entity.field_para_hotel_stars_official
+  - name: field__listing__p__field_para_hotel_type
+    field: field_listing_specifics_para.entity.field_para_hotel_type
+  - name: field__listing__p__field_para_hotel_website_url
+    field: field_listing_specifics_para.entity.field_para_hotel_website_url
+  - name: field__listing__p__field_para_hotel_zalen
+    field: field_listing_specifics_para.entity.field_para_hotel_zalen
+
+
+  # list of fields in listing a user can select to build a table column with
+  - name: construct__filter_group__listing_fields
+  - name: construct__listing_field__company
+  - name: construct__listing_field__campaign
+  - name: construct__listing_field__canvass
+  - name: field_listing_canvas_tags
+  - name: field_listing_interact_sts_tags
+  - name: construct__field_listing_location__city
+  - name: construct__field_listing_location__province
+  - name: construct__field_listing_location__country
+  - name: field_listing_category
+  - name: field_listing_tags
+  - name: field_listing_amenities
+  - name: field_listing_stars
+  - name: field_listing_chain
+  - name: field_listing_supplier_of
+  - name: field_listing_nacebel_code
+  - name: field_listing_status
+
+
+entity_contact:
+  ##############################################################################################################CONTACT
+  # THE GENERAL PLACEHOLDER DEFINITION FOR ALL CONTACT QUERIES
+  - name: contact.entity
+    type: sql
+    field: body
+    # select NID sql
+    sql: >
+      SELECT distinct base_table.nid AS nid FROM node AS base_table
+      INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+      LEFT JOIN :TABLE ON :TABLE.entity_id = base_table.nid
+      WHERE (node_field_data.status = '1')
+        AND (node_field_data.type = 'contact')
+        AND :CONDITION
+    conditions:
+      IN:
+        :TABLE.:FIELD IN (:VALUES)
+      NOT IN:
+        :TABLE.:FIELD NOT IN (:VALUES)
+      IS NULL:
+        :TABLE.:FIELD IS NULL
+      IS NOT NULL:
+        :TABLE.:FIELD IS NOT NULL
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    # is usually overridden by fields indicating the right method
+    use_filter: DEFAULT
+    # various ways to create hierarchical select tid:labels
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      # Must return taxonomy level 2, 0 and 1 are above it.
+      TAXONOMY_REFERENCE_0_UP:
+        sql: >
+          select distinct :TABLE.:FIELD as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent tid to return; company campaign canvass return campaigns
+      TAXONOMY_REFERENCE_1_UP:
+        sql: >
+          select distinct parent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent which has parent tid to return; company campaign canvass return companies
+      TAXONOMY_REFERENCE_2_UP:
+        sql: >
+          select distinct grandparent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      UID_VALUE:
+        sql: >
+          select distinct :FIELD as uid from :TABLE
+        fetchKey: uid
+      STRING_VALUE:
+        sql: >
+          select distinct :FIELD as text from :TABLE
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as "integer" from :TABLE
+        fetchKey: integer
+      FINANCIAL_VALUE:
+        sql: >
+          select distinct :FIELD as "financial" from :TABLE
+        fetchKey: financial
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      ENTITY_VALUE:
+        sql: >
+          select distinct base_table.nid as "key_label", node_field_data.title as "label" from :TABLE
+          INNER JOIN node AS base_table
+          INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+          WHERE (node_field_data.status = '1')
+          AND base_table.nid = :TABLE.:FIELD
+        fetchKey: key_label
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+  - name: field__contact__field_para_address_city
+    field: field_p_contact_address.entity.field_para_address_city
+
+  - name: field__contact__field_para_address_country
+    field: field_p_contact_address.entity.field_para_address_country
+
+  - name: field__contact__field_para_address_epsg_x
+    field: field_p_contact_address.entity.field_para_address_epsg_x
+
+  - name: field__contact__field_para_address_epsg_y
+    field: field_p_contact_address.entity.field_para_address_epsg_y
+
+  - name: field__contact__field_para_address_housenr
+    field: field_p_contact_address.entity.field_para_address_housenr
+
+  - name: field__contact__field_para_address_latitude
+    field: field_p_contact_address.entity.field_para_address_latitude
+
+  - name: field__contact__field_para_address_longitude
+    field: field_p_contact_address.entity.field_para_address_longitude
+
+  - name: field__contact__field_para_address_postalcode
+    field: field_p_contact_address.entity.field_para_address_postalcode
+
+  - name: field__contact__field_para_address_province
+    field: field_p_contact_address.entity.field_para_address_province
+
+  - name: field__contact__field_para_address_street
+    field:  field_p_contact_address.entity.field_para_address_street
+
+
+## BUSINESS PARAGRAPH
+  - name: field__contact__field_para_business_bank1
+    field:  field_p_business_information.entity.field_para_business_bank1
+
+  - name: field__contact__field_para_business_brandname
+    field:  field_p_business_information.entity.field_para_business_brandname
+
+  - name: field__contact__field_para_business_establish_yr
+    field:  field_p_business_information.entity.field_para_business_establish_yr
+
+  - name: field__contact__field_para_business_icon
+    field:  field_p_business_information.entity.field_para_business_icon
+
+  - name: field__contact__field_para_business_logo
+    field:  field_p_business_information.entity.field_para_business_logo
+
+  - name: field__contact__field_para_business_no_employees
+    field:  field_p_business_information.entity.field_para_business_no_employees
+
+  - name: field__contact__field_para_business_registration
+    field:  field_p_business_information.entity.field_para_business_registration
+
+  - name: field__contact__field_para_business_companyname
+    field:  field_p_business_information.entity.field_para_business_companyname
+
+  - name: field__contact__field_para_business_contacts
+    field:  field_p_business_information.entity.field_para_business_contacts
+
+  - name: field__contact__field_para_business_chain_link
+    field:  field_p_business_information.entity.field_para_business_chain_link
+
+  - name: field__contact__field_para_business_nacebel
+    field:  field_p_business_information.entity.field_para_business_nacebel
+
+  - name: field__contact__field_para_business_chain_name
+    field:  field_p_business_information.entity.field_para_business_chain_name
+
+  - name: field__contact__field_para_business_type
+    field:  field_p_business_information.entity.field_para_business_type
+
+  - name: field__contact__field_para_business_vat_number
+    field:  field_p_business_information.entity.field_para_business_vat_number
+
+  - name: field__contact__field_para_business_website
+    field:  field_p_business_information.entity.field_para_business_website
+
+
+
+  # LISTS
+
+  - name: construct__contact__field_p_contact_address__city
+    redirect: contact.entity
+    table: paragraph__field_para_address_city
+    field: field_para_address_city_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact city
+
+  - name: construct__contact__field_p_contact_address__country
+    redirect: contact.entity
+    table: paragraph__field_para_address_country
+    field: field_para_address_country_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact country
+
+  - name: construct__contact__field_p_contact_address__epsgx
+    redirect: contact.entity
+    table: paragraph__field_para_address_epsg_x
+    field: field_para_address_epsg_x_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact epsg x
+
+  - name: construct__contact__field_p_contact_address__epsgy
+    redirect: contact.entity
+    table: paragraph__field_para_address_epsg_y
+    field: field_para_address_epsg_y_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact epsg y
+
+  - name: construct__contact__field_p_contact_address__housenr
+    redirect: contact.entity
+    table: paragraph__field_para_address_housenr
+    field: field_para_address_housenr_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact house number
+
+  - name: construct__contact__field_p_contact_address__latitude
+    redirect: contact.entity
+    table: paragraph__field_para_address_latitude
+    field: field_para_address_latitude_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact Latitude
+
+  - name: construct__contact__field_p_contact_address__longitude
+    redirect: contact.entity
+    table: paragraph__field_para_address_longitude
+    field: field_para_address_longitude_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact Longitude
+
+  - name: construct__contact__field_p_contact_address__postalcode
+    redirect: contact.entity
+    table: paragraph__field_para_address_postalcode
+    field: field_para_address_postalcode_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact postal code
+
+  - name: construct__contact__field_p_contact_address__province
+    redirect: contact.entity
+    table: paragraph__field_para_address_province
+    field: field_para_address_province_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact province
+
+  - name: construct__contact__field_p_contact_address__street
+    redirect: contact.entity
+    table: paragraph__field_para_address_street
+    field: field_para_address_street_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact street
+
+#  - name: construct__contact__body
+
+# business paragraph
+  - name: construct__contact__field_p_business_information__bank1
+    table: paragraph__field_para_business_bank1
+    field: field_para_business_bank1_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact bank
+
+  - name: construct__contact__field_p_business_information__brandname
+    table: paragraph__field_para_business_brandname
+    field: field_para_business_brandname_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact brand name
+
+
+
+  - name: construct__filter_group__contact_business_information
+    type: IGNORE
+
+  - name: construct__contact__field_p_business_information__establish_yr
+    table: paragraph__field_para_business_establish_yr
+    field: field_para_business_establish_yr_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Year of establishment
+
+  - name: construct__contact__field_p_business_information__no_employes
+    table: paragraph__field_para_business_no_employees
+    field: field_para_business_no_employees_value
+    redirect: contact.entity
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Number of Employees
+
+  - name: construct__contact__field_p_business_information__registration
+    table: paragraph__field_para_business_registration
+    field: field_para_business_registration_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Chambre of Commerce no.
+
+  - name: construct__contact__field_p_business_information__companyname
+    table: paragraph__field_para_business_companyname
+    field: field_para_business_companyname_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Company name
+##########################################!!!!!!
+  - name: construct__contact__field_p_business_information__contacts
+    table: paragraph__field_para_business_contacts
+    field: field_para_business_contacts_target_id
+    redirect: contact.entity
+# todo add this
+    use_filter: ENTITY_VALUE
+    user_label:
+      en: Contacts
+##########################################!!!!!!!!!
+  - name: construct__contact__field_p_business_information__chain_link
+    table: paragraph__field_para_business_chain_link
+    field: field_para_business_chain_link_target_id
+    redirect: contact.entity
+    # todo add this
+    use_filter: ENTITY_VALUE
+    user_label:
+      en: Chains
+
+  - name: construct__contact__field_p_business_information__nacebel
+    table: paragraph__field_para_business_nacebel
+    field: field_para_business_nacebel_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Nacebel code
+
+  - name: construct__contact__field_p_business_information__chain_name
+    table: paragraph__field_para_business_chain_name
+    field: field_para_business_chain_name_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Chain name
+
+  - name: construct__contact__field_p_business_information__type
+    table: paragraph__field_para_business_type
+    field: field_para_business_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Business type
+
+  - name: construct__contact__field_p_business_information__vat_number
+    table: paragraph__field_para_business_vat_number
+    field: field_para_business_vat_number_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: VAT Number
+
+  - name: construct__contact__field_p_business_information__website
+    table: paragraph__field_para_business_website
+    field: field_para_business_website_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Website
+
+# contact -> contact_paragraph
+  - name: construct__filter_group__contact__field_contact_data
+# field    field_para_contact_mail_ref:
+# field   field_para_contact_phone_ref:
+
+# contact -> contact_paragraph -> contact_email_paragraph
+  # contact -> contact_paragraph -> contact_email_paragraph
+  - name: construct__contact__field_contact_data__subscriber_id
+    table: paragraph__field_para_contact_subscriber_id
+    field: field_para_contact_subscriber_id_target_id
+    redirect: contact.entity
+    use_filter: UID_VALUE
+    user_label:
+      en: Subscriber ID
+
+  - name: construct__contact__field_contact_data__email_address
+    table: paragraph__field_para_contact_email_address
+    field: field_para_contact_email_address_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email address
+
+  - name: construct__contact__field_contact_data__email_instructions
+    table: paragraph__field_para_contact_email_instruc
+    field: field_para_contact_email_instruc_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email instructions
+
+  - name: construct__contact__field_contact_data__email_type
+    table: paragraph__field_para_contact_email_type
+    field: field_para_contact_email_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email type
+
+# field   field_para_contact_phone_ref:
+# contact -> contact_paragraph -> phone_paragraph
+  - name: construct__contact__field_contact_data__phone_instructions
+    table: paragraph__field_para_phone_instructions
+    field: field_para_phone_instructions_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone instructions
+
+  - name: construct__contact__field_contact_data__phone_number
+    table: paragraph__field_para_phone_number
+    field: field_para_phone_number_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone number
+
+  - name: construct__contact__field_contact_data__phone_type
+    table: paragraph__field_para_phone_type
+    field: field_para_phone_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone type
+
+# contact -> contact_paragraph -> financials_paragraph
+#  - name: construct__contact__field_para_ref_financials__reference
+#    redirect: contact.entity
+#    table: paragraph__field_para_fin_d_reference
+#    field: field_para_fin_d_reference_target_id
+#    use_filter: ENTITY_VALUE
+#    user_label:
+#      en: Financials reference
+
+  - name: construct__contact__field_para_ref_financials__latest_bookyear
+    redirect: contact.entity
+    table: paragraph__field_para_fin_latest_bookyear
+    field: field_para_fin_latest_bookyear_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials latest book year
+
+  - name: construct__contact__field_para_ref_financials__summary
+    redirect: contact.entity
+    table: paragraph__field_para_fin_summary
+    field: field_para_fin_summary_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials summary
+
+
+  - name: construct__contact__field_para_ref_financials__registration_year
+    redirect: contact.entity
+    table: paragraph__field_para_fin_registration_year
+    field: field_para_fin_registration_year_value
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Financials registration year
+
+# # contact -> contact_paragraph -> financials_paragraph -> financials_details_paragraph
+  - name: construct__contact__field_para_ref_financials__details_bookyear
+    redirect: contact.entity
+    table: paragraph__field_field_para_fin_d_bookyear
+    field: field_field_para_fin_d_bookyear_value
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Bookyear
+      nl: Boekjaar
+
+  - name: construct__contact__field_para_ref_financials__details_equity
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_equity
+    field: field_para_fin_d_equity_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials equity
+      nl: Eigen vermogen
+
+  - name: construct__contact__field_para_ref_financials__details_profit_loss
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_profit_loss
+    field: field_para_fin_d_profit_loss_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials Profit and Loss
+
+  - name: construct__contact__field_para_ref_financials__details_revenue
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_revenue
+    field: field_para_fin_d_revenue_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials Revenue
+
+  - name: construct__contact__field_para_ref_financials__details_source
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_source
+    field: field_para_fin_d_source_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials source
+
+
+  # contact -> paragraph_openstreetmap
+  - name: construct__contact__field_p_openstreetmap__property_type
+    redirect: contact.entity
+    field: field_para_osm_property_type_value
+    table: paragraph__field_para_osm_property_type
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map property type
+
+
+  - name: construct__contact__field_p_openstreetmap__city_district
+    redirect: contact.entity
+    field: field_para_osm_city_district_value
+    table: paragraph__field_para_osm_city_district
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map city district
+
+  - name: construct__contact__field_p_openstreetmap__class
+    redirect: contact.entity
+    field: field_para_osm_class_value
+    table: paragraph__field_para_osm_class
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map property class
+
+  - name: construct__contact__field_p_openstreetmap__id
+    redirect: contact.entity
+    field: field_para_osm_id_value
+    table: paragraph__field_para_osm_id
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map Id
+
+  - name: construct__contact__field_p_openstreetmap__country
+    redirect: contact.entity
+    field: field_para_osm_country_value
+    table: paragraph__field_para_osm_country
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map country
+
+  - name: construct__contact__field_p_openstreetmap__country_code
+    redirect: contact.entity
+    field: field_para_osm_country_code_value
+    table: paragraph__field_para_osm_country_code
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map country code
+
+  - name: construct__contact__field_p_openstreetmap__hamlet
+    redirect: contact.entity
+    field: field_para_osm_hamlet_value
+    table: paragraph__field_para_osm_hamlet
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map hamlet
+
+  - name: construct__contact__field_p_openstreetmap__house_number
+    redirect: contact.entity
+    field: field_para_osm_house_number_value
+    table: paragraph__field_para_osm_house_number
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map house number
+# iso something
+#  - name: construct__contact__field_p_openstreetmap__
+# iso something 2
+#  - name: construct__contact__field_p_openstreetmap__
+
+  - name: construct__contact__field_p_openstreetmap__municipality
+    redirect: contact.entity
+    field: field_para_osm_municipality_value
+    table: paragraph__field_para_osm_municipality
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map municipality
+
+  - name: construct__contact__field_p_openstreetmap__postalcode
+    redirect: contact.entity
+    field: field_para_osm_postalcode_value
+    table: paragraph__field_para_osm_postalcode
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map postal code
+
+  - name: construct__contact__field_p_openstreetmap__road
+    redirect: contact.entity
+    field: field_para_osm_road_value
+    table: paragraph__field_para_osm_road
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map road
+
+  - name: construct__contact__field_p_openstreetmap__state
+    redirect: contact.entity
+    field: field_para_osm_state_value
+    table: paragraph__field_para_osm_state
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map state
+
+  - name: construct__contact__field_p_openstreetmap__tourism
+    redirect: contact.entity
+    field: field_para_osm_tourism_value
+    table: paragraph__field_para_osm_tourism
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map tourism
+
+  - name: construct__contact__field_p_openstreetmap__village
+    redirect: contact.entity
+    field: field_para_osm_village_value
+    table: paragraph__field_para_osm_village
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map village
+
+# contact -> personal_paragraph
+  - name: construct__contact__field_p_personal__birth_date
+    redirect: contact.entity
+    table: paragraph__field_para_personal_birth_date
+    field: field_para_personal_birth_date_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal birth date
+
+  - name: construct__contact__field_p_personal__firstname
+    redirect: contact.entity
+    table: paragraph__field_para_personal_firstname
+    field: field_para_personal_firstname_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal first name
+
+  - name: construct__contact__field_p_personal__id
+    redirect: contact.entity
+    table: paragraph__field_para_personal_id
+    field: field_para_personal_id_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal id
+
+  - name: construct__contact__field_p_personal__initials
+    redirect: contact.entity
+    table: paragraph__field_para_personal_initials
+    field: field_para_personal_initials_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal initials
+
+  - name: construct__contact__field_p_personal__job_title
+    redirect: contact.entity
+    table: paragraph__field_para_personal_job_title
+    field: field_para_personal_job_title_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal job title
+
+  - name: construct__contact__field_p_personal__lastname
+    redirect: contact.entity
+    table: paragraph__field_para_personal_lastname
+    field: field_para_personal_lastname_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal last name
+
+  - name: construct__contact__field_p_personal__middlename
+    redirect: contact.entity
+    table: paragraph__field_para_personal_middlename
+    field: field_para_personal_middlename_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal middle name
+
+  - name: construct__contact__field_p_personal__occupation
+    redirect: contact.entity
+    table: paragraph__field_para_personal_occupation
+    field: field_para_personal_occupation_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal occupation
+
+  - name: construct__contact__field_p_personal__salutation
+    redirect: contact.entity
+    table: paragraph__field_para_personal_salutation
+    field: field_para_personal_salutation_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal salutation
+
+#contact -> socials_paragraph
+  - name: construct__contact__field_p_socials_apollo
+    redirect: contact.entity
+    table: paragraph__field_para_social_apollo
+    field: field_para_social_apollo_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials Apollo
+
+  - name: construct__contact__field_p_socials_facebook
+    redirect: contact.entity
+    table: paragraph__field_para_social_facebook
+    field: field_para_social_facebook_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials facebook
+
+  - name: construct__contact__field_p_socials_instagram
+    redirect: contact.entity
+    table: paragraph__field_para_social_instagram
+    field: field_para_social_instagram_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Social instagram
+
+  - name: construct__contact__field_p_socials_twitter
+    redirect: contact.entity
+    table: paragraph__field_para_social_twitter
+    field: field_para_social_twitter_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials twitter
+
+  - name: construct__contact__field_p_socials_linkedin
+    redirect: contact.entity
+    table: paragraph__field_para_social_linkedin
+    field: field_para_social_linkedin_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials Linked in
+
+entity_call_report:
+  ########################################################################################################### CALL REPORTS
+  # they have a row per value, the entity query adds .name and .value and creates two condition arguments.
+  - name: bm_call_report
+    type: sql
+    field: 'call_report_negative'
+    # listing->paragraph->interaction->submission
+    # note the >
+    # note the :CONDITION, this is replaced with the conditions sql under conditions:
+    # detecting ~ in value will make it a BETWEEN condition
+    sql: >
+      SELECT distinct node.nid FROM webform_submission_data
+      inner join node on cast(node.nid as char) = webform_submission_data.value
+      INNER JOIN node_field_data ON node_field_data.nid = node.nid
+      WHERE node.type='listing' and node_field_data.status = 1
+      AND webform_submission_data.name = 'listing_id'
+      AND (:CONDITION)
+    conditions:
+      IN: >
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+          where webform_submission_data.name = ':FIELD' and webform_submission_data.value IN (:VALUES)
+        )
+      NOT IN: >
+        webform_submission_data.sid NOT IN
+        (
+          select webform_submission_data.sid from webform_submission_data
+          where webform_submission_data.name = ':FIELD' and webform_submission_data.value IN (:VALUES)
+        )
+      IS NULL: >
+        webform_submission_data.sid NOT IN
+        ( select webform_submission_data.sid from webform_submission_data where webform_submission_data.name = ':FIELD' )
+      IS NOT NULL: >
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data where webform_submission_data.name = ':FIELD' )
+      =: >
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+          where webform_submission_data.name = ':FIELD' and lower(webform_submission_data.value) = lower(':VALUES')
+        )
+      # is "=", but the nids are excluded from the result
+      '<>': >
+        webform_submission_data.sid IN
+         ( select webform_submission_data.sid from webform_submission_data
+           where webform_submission_data.name = ':FIELD' and lower(webform_submission_data.value) = lower(':VALUES')
+         )
+      LIKE: >
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+          where webform_submission_data.name = ':FIELD' and lower(webform_submission_data.value) LIKE lower('%:VALUES%')
+        )
+      # detecting a ~ in the value, will make it a BETWEEN condition
+      BETWEEN:
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+        where webform_submission_data.name = ':FIELD'
+        and STR_TO_DATE(SUBSTRING_INDEX(value,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(value,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+        )
+
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+        where webform_submission_data.name = ':FIELD'
+        and cast(value as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(value as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+        )
+      BEFORE:
+        # ...2012 detected by ... in front
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+        where webform_submission_data.name = ':FIELD'
+        and cast(value as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+        )
+      AFTER:
+        # 1021...  detected by ... after it
+        webform_submission_data.sid IN
+        ( select webform_submission_data.sid from webform_submission_data
+        where webform_submission_data.name = ':FIELD'
+        and cast(value as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        )
+    filters:
+      DEFAULT: # lists values from the passed to field
+        sql: >
+          select distinct the_data.value as text
+          from webform_submission_data as the_data
+          join webform_submission_data as the_listing on the_data.sid= the_listing.sid
+          join node on cast(node.nid as char) = the_listing.value
+          join node_field_data on node_field_data.nid = node.nid
+          where the_data.name = ':FIELD' and the_data.value<>''
+          and the_listing.name='listing_id'
+          and node_field_data.status=1 and node.type='listing'
+          and node_field_data.langcode in (:LANGUAGE)
+          order by the_data.value
+        fetchKey: text
+      STRING_VALUE:
+        sql: >
+          select distinct the_data.value as text
+          from webform_submission_data as the_data
+          join webform_submission_data as the_listing on the_data.sid= the_listing.sid
+          join node on cast(node.nid as char) = the_listing.value
+          join node_field_data on node_field_data.nid = node.nid
+          where the_data.name = ':FIELD' and the_data.value<>''
+          and the_listing.name='listing_id'
+          and node_field_data.status=1 and node.type='listing'
+          and node_field_data.langcode in (:LANGUAGE)
+          order by the_data.value
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct the_data.value as target_id
+          from webform_submission_data as the_data
+          join webform_submission_data as the_listing on the_data.sid= the_listing.sid
+          join node on cast(node.nid as char) = the_listing.value
+          join node_field_data on node_field_data.nid = node.nid
+          where the_data.name = ':FIELD' and the_data.value<>''
+          and the_listing.name='listing_id'
+          and node_field_data.status=1 and node.type='listing'
+          and node_field_data.langcode in (:LANGUAGE)
+          order by the_data.value
+        fetchKey: target_id
+
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+  - name: bm_call_report_positive
+    redirect: bm_call_report
+    field: call_report_positive
+    user_label:
+      en: 'Positive call result'
+
+  - name: bm_call_report_negative
+    redirect: bm_call_report
+    field: call_report_negative
+    user_label:
+      en: 'Negative call result'
+  #
+  - name: construct__call_report__call_appointment_address
+    redirect: bm_call_report
+    field: call_appointment_address
+    user_label:
+      en: 'Search appointment address'
+      nl: 'Search appointment address'
+      fr: 'Search appointment address'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_back_different_number
+    redirect: bm_call_report
+    field: call_back_different_number
+    user_label:
+      en: 'Callback on different nr'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  # a datetime field as: 2022-11-15T10:06:00+0100 in submissions
+  - name: construct__call_report__call_back_or_appointment_date_time
+    redirect: bm_call_report
+    field: call_back_or_appointment_date_time
+    user_label:
+      en: 'Appointment date and time'
+    use_filter: COMPONENT_DATE_INPUT_FROM_TO
+
+  - name: construct__call_report__call_details
+    redirect: bm_call_report
+    field: call_details
+    user_label:
+      en: 'Call details'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_email_addressing_title
+    redirect: bm_call_report
+    field: call_email_addressing_title
+    user_label:
+      en: 'email addressing title'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_email_attachment
+    redirect: bm_call_report
+    type: file
+    field: call_email_attachment
+    user_label:
+      en: 'email attachment'
+
+  - name: construct__call_report__call_email_attachments
+    redirect: bm_call_report
+    type: file
+    field: call_email_attachments
+    user_label:
+      en: 'email attachments'
+
+  - name: construct__call_report__call_email_body
+    redirect: bm_call_report
+    field: call_email_body
+    user_label:
+      en: 'email body'
+    use_filter: COMPONENT_TEXT_INPUT
+  #
+  - name: construct__call_report__call_send_mail_to
+    redirect: bm_call_report
+    field: call_send_mail_to
+    user_label:
+      en: 'Send mail to address'
+    use_filter: COMPONENT_TEXT_INPUT
+  #
+  - name: construct__call_report__call_email_cc
+    redirect: bm_call_report
+    field: call_email_cc
+    user_label:
+      en: 'email cc'
+    use_filter: COMPONENT_TEXT_INPUT
+  #
+  - name: construct__call_report__call_email_bcc
+    redirect: bm_call_report
+    field: call_email_bcc
+    user_label:
+      en: 'email bcc'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_email_signature
+    redirect: bm_call_report
+    field: call_email_signature
+    user_label:
+      en: 'email signature'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_email_subject
+    redirect: bm_call_report
+    field: call_email_subject
+    user_label:
+      en: 'email subject'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_mail_addressing_to
+    redirect: bm_call_report
+    field: call_mail_addressing_to
+    user_label:
+      en: 'email addressing to'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_mail_first_line
+    redirect: bm_call_report
+    field: call_mail_first_line
+    user_label:
+      en: 'email first line'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_mail_to_saluation
+    redirect: bm_call_report
+    field: call_mail_to_saluation
+    user_label:
+      en: 'email salutation'
+
+  - name: construct__call_report__call_phone_number
+    redirect: bm_call_report
+    field: call_phone_number
+    user_label:
+      en: 'Call phone number'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_report_negative
+    redirect: bm_call_report
+    field: call_report_negative
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      en: 'Negative call result'
+
+  - name: construct__call_report__call_report_positive
+    redirect: bm_call_report
+    field: call_report_positive
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      en: 'Positive call result'
+
+  #  2023-04-27,
+  - name: construct__call_report__call_spoken_on_date
+    redirect: bm_call_report
+    field: call_spoken_on_date
+    user_label:
+      en: 'Spoken on date'
+    use_filter: COMPONENT_DATE_INPUT_FROM_TO
+
+  - name: construct__call_report__call_spoken_with
+    redirect: bm_call_report
+    field: call_spoken_with
+    user_label:
+      en: Spoken with'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__call_spoken_with_job_title
+    redirect: bm_call_report
+    field: call_spoken_with_job_title
+    user_label:
+      en: 'Spoken with job title'
+    use_filter: STRING_VALUE
+
+  - name: construct__call_report__closed_for_the_holidays_until
+    redirect: bm_call_report
+    field: closed_for_the_holidays_until
+    user_label:
+      en: 'Closed for holidays until'
+    use_filter: COMPONENT_DATE_INPUT_FROM_TO
+
+  - name: construct__call_report__email_template_paragraph_id
+    redirect: bm_call_report
+    field: email_template_paragraph_id
+    user_label:
+      en: 'email template paragraph id'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__listing_entity
+    redirect: bm_call_report
+    field: listing_entity
+    user_label:
+      en: 'Listing'
+    use_filter: COMPONENT_TEXT_INPUT
+
+  - name: construct__call_report__listing_id
+    redirect: bm_call_report
+    field: listing_id
+    user_label:
+      en: 'listing Id'
+    use_filter: COMPONENT_TEXT_INPUT
+entity_interaction:
+
+  # PARAGRAPHS ##############
+
+
+  - name:  field__listing__listing_interaction_paragraph__field_para_interaction_moment
+    field: field_listing_interact_log.entity.field_para_interaction_moment
+
+  # how it is connected:
+  #
+  # listings:field_listing_interact_log->
+  #   Listing_interaction_paragraph
+  #     :field_para_interaction_canvas -> company_campaign_canvas taxonomy
+  #     :field_para_interaction_reference -> interaction entity
+  #       interaction:
+  #         field_interaction_action_tags
+  #         field_interaction_campaign_tag
+  #         field_interaction_canvas_tag
+  #         field_interaction_company_tag
+  #         field_interaction_contact
+  #         field_interaction_listing
+  #         field_interaction_raw_log
+  #         field_interaction_submission
+  #         field_interaction_user_cmpny_tag
+  #         field_interaction_user_tag
+  #         field_interaction_user_team_tag
+  #         field_interaction_user
+  #         field_interaction_webform
+  #     :field_para_interaction_moment -> Date field
+  #     :field_para_interaction_status -> target_id, interaction_status (taxonomy)
+  #     :field_para_interaction_user -> target_id, Account entity
+
+
+
+  ############################################################################################# LOG PARAGRAPH IN LISTINGS
+  # VIA FIELD field_listing_interact_log
+  # field_para_interaction_canvas     reference to company_campaign_canvas_tags
+  # field_para_interaction_reference  reference to interaction entity
+  # field_para_interaction_member     reference to team_tags user
+  # field_para_interaction_moment     date time field
+  # field_para_interaction_status     reference to interaction_status_tags
+  # field_para_interaction_user       reference to account uid
+  #
+  # General condition definition: field_listing_interact_log.entity.field_para_interaction_canvas
+
+
+  # THE GENERAL PLACEHOLDER DEFINITION FOR ALL
+  - name: listing_interaction_paragraph.entity
+    type: sql
+    field: field_listing_interact_log.entity
+    # select NID sql
+    sql: >
+      SELECT distinct base_table.nid AS nid FROM node AS base_table
+      INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+      INNER JOIN node__field_listing_interact_log ON node__field_listing_interact_log.entity_id = base_table.nid
+      LEFT OUTER JOIN paragraphs_item ON paragraphs_item.id = node__field_listing_interact_log.field_listing_interact_log_target_id
+      INNER JOIN :TABLE ON :TABLE.entity_id = paragraphs_item.id
+      WHERE (node_field_data.status = '1')
+        AND (node_field_data.type = 'listing')
+        AND :CONDITION
+    conditions:
+      IN:
+        :TABLE.:FIELD IN (:VALUES)
+      NOT IN:
+        :TABLE.:FIELD NOT IN (:VALUES)
+      IS NULL:
+        :TABLE.:FIELD IS NULL
+      IS NOT NULL:
+        :TABLE.:FIELD IS NOT NULL
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT: >
+        SELECT base_table.nid AS nid
+        FROM node base_table
+            INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+            INNER JOIN node__field_listing_interact_log ON node__field_listing_interact_log.entity_id = base_table.nid
+            LEFT OUTER JOIN paragraphs_item ON paragraphs_item.id = node__field_listing_interact_log.field_listing_interact_log_target_id
+            INNER JOIN :TABLE ON :TABLE.entity_id = paragraphs_item.id
+            WHERE (node_field_data.status = '1')
+              AND (node_field_data.type = 'listing')
+              AND :CONDITION
+
+  # definition to display field values as hierarchical select options
+  # keyword: construct__hierarchical_select
+  # sql: is mandatory and should return target_ids
+  - name: construct__listing_interaction_paragraph__field_para_interaction_canvass
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_canvas_target_id
+    table: paragraph__field_para_interaction_canvas
+    filters:
+      DEFAULT:
+        sql: >
+          select distinct field_para_interaction_canvas_target_id as target_id
+          from paragraph__field_para_interaction_canvas
+        fetchKey: target_id
+    user_label:
+      -1: Canvass used in interaction
+      en: Canvass used in interaction
+
+  - name: construct__listing_interaction_paragraph__field_para_interaction_status
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_status_target_id
+    table: paragraph__field_para_interaction_status
+    filters:
+      DEFAULT:
+        sql: >
+          select distinct field_para_interaction_status_target_id as target_id
+          from paragraph__field_para_interaction_status
+        fetchKey: target_id
+    user_label:
+      -1: Interaction status
+      en: Interaction status
+  # example of the key_label hierarchical select.
+  #  The data returned in filters is a key|label to be used in a HS
+  # 2023-2
+  - name: construct__listing_interaction_paragraph__field_para_interaction_moment__by_month
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_moment_value
+    table: paragraph__field_para_interaction_moment
+    conditions:
+      IN_MONTH:
+        concat(YEAR(:TABLE.:FIELD), MONTH(:TABLE.:FIELD)) IN (:VALUES)
+    filters:
+      DEFAULT:
+        sql: >
+          SELECT
+          concat(YEAR(field_para_interaction_moment_value), MONTH(field_para_interaction_moment_value)) AS key_label,
+          concat(YEAR(field_para_interaction_moment_value), '-',MONTH(field_para_interaction_moment_value)) AS label
+          FROM paragraph__field_para_interaction_moment
+          GROUP BY key_label, label
+          ORDER BY key_label;
+        fetchKey: key_label
+    user_label:
+      -1: Interaction in Month
+      en: Interaction in Month
+  # example of the key_label hierarchical select. The data returned in filters is a key|label to be used in a HS
+  # 2023- Week 5 (0131-0206)
+  # note it overrides conditions and leaves only IN_WEEK to process the values in week format "202399995","202399998"
+  - name: construct__listing_interaction_paragraph__field_para_interaction_moment__by_week
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_moment_value
+    table: paragraph__field_para_interaction_moment
+    conditions:
+      IN_WEEK:
+        concat(YEAR(:TABLE.:FIELD),'9999', WEEK(:TABLE.:FIELD)) IN (:VALUES)
+    filters:
+      DEFAULT:
+        sql: >
+          SELECT
+          concat(YEAR(field_para_interaction_moment_value),'9999', WEEK(field_para_interaction_moment_value)) AS key_label,
+          CONCAT(YEAR(field_para_interaction_moment_value),'- Week ',
+          WEEKOFYEAR(DATE_ADD(DATE(field_para_interaction_moment_value), INTERVAL (1 - WEEKDAY(DATE(field_para_interaction_moment_value))) DAY)),
+          ' (', DATE_FORMAT(DATE_ADD(DATE(field_para_interaction_moment_value), INTERVAL (1 - WEEKDAY(DATE(field_para_interaction_moment_value))) DAY), '%m%d'),
+          '-', DATE_FORMAT(DATE_ADD(DATE_ADD(DATE(field_para_interaction_moment_value), INTERVAL (1 - WEEKDAY(DATE(field_para_interaction_moment_value))) DAY), INTERVAL 6 DAY), '%m%d'), ')'
+          ) AS label
+          FROM paragraph__field_para_interaction_moment
+          group by key_label, label;
+        fetchKey: key_label
+    user_label:
+      -1: Interaction in Week
+      en: Interaction in Week
+
+  # 2023-02-23T15:32:07
+  # via listing->field_listing_interact_log -> paragraph_item:paragraph__field_para_interaction_moment
+  # creates an input component for dates from and to.
+  - name: construct__component__field_para_interaction_moment__date_input_from_to
+    # use this definition:
+    redirect: listing_interaction_paragraph.entity
+    # with this field
+    field: field_para_interaction_moment_value
+    table: paragraph__field_para_interaction_moment
+    component:
+      redirect: component__date_input_from_to
+      user_label:
+        en: Date of interaction
+      tippy:
+        en: Select when this listing was used in an interaction. You can enter from and to dates, or only from or only to dates.
+
+
+
+  # get who logged the entry Listing paragraph
+  - name: construct__listing_interaction_paragraph__field_para_interaction_user
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_user_target_id
+    table: paragraph__field_para_interaction_user
+    conditions:
+      IN:
+        :TABLE.:FIELD+1000000 IN (:VALUES)
+    filters:
+      DEFAULT:
+        sql: >
+          select distinct field_para_interaction_user_target_id as uid
+          from paragraph__field_para_interaction_user
+        fetchKey: uid
+    user_label:
+      -1: Interaction by user
+      en: Interaction by user
+  # get who logged an entry from the taxonomy team_tags Listing paragraph
+  - name: construct__listing_interaction_paragraph__field_para_interaction_member
+    redirect: listing_interaction_paragraph.entity
+    field: field_para_interaction_member_target_id
+    table: paragraph__field_para_interaction_member
+    filters:
+      DEFAULT:
+        sql: >
+          select distinct field_para_interaction_member_target_id as target_id
+          from paragraph__field_para_interaction_member
+        fetchKey: target_id
+    user_label:
+      -1: Interaction by team member
+      en: Interaction by team member
+
+
+  ##################################################################################################### interaction entity
+  - name: interaction.entity
+    type: sql
+    field: body
+    sql: >
+      SELECT base_table.nid AS nid
+      FROM node base_table
+          # data from nodes
+          INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+          # link to interaction
+          INNER JOIN node__field_listing_interact_log ON node__field_listing_interact_log.entity_id = base_table.nid
+          # interaction records
+          INNER JOIN node ON node.nid = node__field_listing_interact_reference.field_listing_interact_reference_target_id
+          INNER JOIN :TABLE ON :TABLE.entity_id = paragraphs_item.id
+          WHERE (node_field_data.status = '1')
+            AND (node_field_data.type = 'listing')
+            AND :CONDITION
+    conditions:
+      IN:
+      NOT IN:
+      IS NULL:
+      IS NOT NULL:
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      USER_REFERENCE:
+        sql: >
+          select distinct :FIELD as uid from :TABLE
+        fetchKey: uid
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      # Must return taxonomy level 2, 0 and 1 are above it.
+      TAXONOMY_REFERENCE_0_UP:
+        sql: >
+          select distinct :TABLE.:FIELD as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent tid to return; company campaign canvass return campaigns
+      TAXONOMY_REFERENCE_1_UP:
+        sql: >
+          select distinct parent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent which has parent tid to return; company campaign canvass return companies
+      TAXONOMY_REFERENCE_2_UP:
+        sql: >
+          select distinct grandparent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      STRING_VALUE:
+        sql: >
+          select distinct :FIELD as text from :TABLE
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+  - name: construct__interaction__field_interaction_raw_log
+    redirect: interaction.entity
+    field: field_interaction_raw_log_value
+    table: node__field_interaction_raw_log
+    use_filter: COMPONENT_TEXT_INPUT
+    user_label:
+      -1: admin call report raw log
+
+  - name: construct__interaction__field_interaction_action_tags
+    redirect: interaction.entity
+    field: field_interaction_action_tags_target_id
+    table: node__field_interaction_action_tags
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Sales status
+
+  - name: construct__interaction__field_interaction_campaign_tag
+    redirect: interaction.entity
+    field: field_interaction_campaign_tag_target_id
+    table: node__field_interaction_campaign_tag
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Campaigns
+
+  - name: construct__interaction__field_interaction_canvas_tag
+    redirect: interaction.entity
+    field: field_interaction_canvas_tag_target_id
+    table: node__field_interaction_canvas_tag
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Canvasses
+
+  - name: construct__interaction__field_interaction_company_tag
+    redirect: interaction.entity
+    field: field_interaction_company_tag_target_id
+    table: node__field_interaction_company_tag
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Company
+
+  - name: construct__interaction__field_interaction_contact
+    redirect: interaction.entity
+    field: field_interaction_contact_target_id
+    table: node__field_interaction_contact
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Contacts
+
+  - name: construct__interaction__field_interaction_listing
+    redirect: interaction.entity
+    field: field_interaction_listing_target_id
+    table: node__field_interaction_listing
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Listings
+
+  - name: construct__interaction__field_interaction_submission
+    redirect: interaction.entity
+    field: field_interaction_submission_target_id
+    table: node__field_interaction_submission
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Submission
+
+  - name: construct__interaction__field_interaction_user_cmpny_tag
+    redirect: interaction.entity
+    field: field_interaction_user_cmpny_tag_target_id
+    table: node__field_interaction_user_cmpny_tag
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: User's company
+
+  - name: construct__interaction__field_interaction_user_tag
+    redirect: interaction.entity
+    field: field_interaction_user_tag_target_id
+    table: node__field_interaction_user_tag
+    use_filter: USER_REFERENCE
+    user_label:
+      -1: User
+
+  - name: construct__interaction__field_interaction_user_team_tag
+    redirect: interaction.entity
+    field: field_interaction_user_team_tag_target_id
+    table: node__field_interaction_user_team_tag
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Team
+
+  - name: construct__interaction__field_interaction_user
+    redirect: interaction.entity
+    field: field_interaction_user_target_id
+    table: node__field_interaction_user
+    use_filter: USER_REFERENCE
+    user_label:
+      -1: UID
+
+  - name: construct__interaction__field_interaction_webform
+    redirect: interaction.entity
+    field: field_interaction_webform_target_id
+    table: node__field_interaction_webform
+    use_filter: TAXONOMY_REFERENCE
+    user_label:
+      -1: Webform
+entity_contact2:
+  ##############################################################################################################CONTACT
+  # THE GENERAL PLACEHOLDER DEFINITION FOR ALL CONTACT QUERIES
+  - name: contact.entity
+    type: sql
+    field: body
+    # select NID sql
+    sql: >
+      SELECT distinct base_table.nid AS nid FROM node AS base_table
+      INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+      LEFT JOIN :TABLE ON :TABLE.entity_id = base_table.nid
+      WHERE (node_field_data.status = '1')
+        AND (node_field_data.type = 'contact')
+        AND :CONDITION
+    conditions:
+      IN:
+        :TABLE.:FIELD IN (:VALUES)
+      NOT IN:
+        :TABLE.:FIELD NOT IN (:VALUES)
+      IS NULL:
+        :TABLE.:FIELD IS NULL
+      IS NOT NULL:
+        :TABLE.:FIELD IS NOT NULL
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    # is usually overridden by fields indicating the right method
+    use_filter: DEFAULT
+    # various ways to create hierarchical select tid:labels
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      # Must return taxonomy level 2, 0 and 1 are above it.
+      TAXONOMY_REFERENCE_0_UP:
+        sql: >
+          select distinct :TABLE.:FIELD as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent tid to return; company campaign canvass return campaigns
+      TAXONOMY_REFERENCE_1_UP:
+        sql: >
+          select distinct parent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent which has parent tid to return; company campaign canvass return companies
+      TAXONOMY_REFERENCE_2_UP:
+        sql: >
+          select distinct grandparent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      UID_VALUE:
+        sql: >
+          select distinct :FIELD as uid from :TABLE
+        fetchKey: uid
+      STRING_VALUE:
+        sql: >
+          select distinct :FIELD as text from :TABLE
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as "integer" from :TABLE
+        fetchKey: integer
+      FINANCIAL_VALUE:
+        sql: >
+          select distinct :FIELD as "financial" from :TABLE
+        fetchKey: financial
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      ENTITY_VALUE:
+        sql: >
+          select distinct base_table.nid as "key_label", node_field_data.title as "label" from :TABLE
+          INNER JOIN node AS base_table
+          INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+          WHERE (node_field_data.status = '1')
+          AND base_table.nid = :TABLE.:FIELD
+        fetchKey: key_label
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+  - name: field__contact__field_para_address_city
+    field: field_p_contact_address.entity.field_para_address_city
+
+  - name: field__contact__field_para_address_country
+    field: field_p_contact_address.entity.field_para_address_country
+
+  - name: field__contact__field_para_address_epsg_x
+    field: field_p_contact_address.entity.field_para_address_epsg_x
+
+  - name: field__contact__field_para_address_epsg_y
+    field: field_p_contact_address.entity.field_para_address_epsg_y
+
+  - name: field__contact__field_para_address_housenr
+    field: field_p_contact_address.entity.field_para_address_housenr
+
+  - name: field__contact__field_para_address_latitude
+    field: field_p_contact_address.entity.field_para_address_latitude
+
+  - name: field__contact__field_para_address_longitude
+    field: field_p_contact_address.entity.field_para_address_longitude
+
+  - name: field__contact__field_para_address_postalcode
+    field: field_p_contact_address.entity.field_para_address_postalcode
+
+  - name: field__contact__field_para_address_province
+    field: field_p_contact_address.entity.field_para_address_province
+
+  - name: field__contact__field_para_address_street
+    field:  field_p_contact_address.entity.field_para_address_street
+
+
+## BUSINESS PARAGRAPH
+  - name: field__contact__field_para_business_bank1
+    field:  field_p_business_information.entity.field_para_business_bank1
+
+  - name: field__contact__field_para_business_brandname
+    field:  field_p_business_information.entity.field_para_business_brandname
+
+  - name: field__contact__field_para_business_establish_yr
+    field:  field_p_business_information.entity.field_para_business_establish_yr
+
+  - name: field__contact__field_para_business_icon
+    field:  field_p_business_information.entity.field_para_business_icon
+
+  - name: field__contact__field_para_business_logo
+    field:  field_p_business_information.entity.field_para_business_logo
+
+  - name: field__contact__field_para_business_no_employees
+    field:  field_p_business_information.entity.field_para_business_no_employees
+
+  - name: field__contact__field_para_business_registration
+    field:  field_p_business_information.entity.field_para_business_registration
+
+  - name: field__contact__field_para_business_companyname
+    field:  field_p_business_information.entity.field_para_business_companyname
+
+  - name: field__contact__field_para_business_contacts
+    field:  field_p_business_information.entity.field_para_business_contacts
+
+  - name: field__contact__field_para_business_chain_link
+    field:  field_p_business_information.entity.field_para_business_chain_link
+
+  - name: field__contact__field_para_business_nacebel
+    field:  field_p_business_information.entity.field_para_business_nacebel
+
+  - name: field__contact__field_para_business_chain_name
+    field:  field_p_business_information.entity.field_para_business_chain_name
+
+  - name: field__contact__field_para_business_type
+    field:  field_p_business_information.entity.field_para_business_type
+
+  - name: field__contact__field_para_business_vat_number
+    field:  field_p_business_information.entity.field_para_business_vat_number
+
+  - name: field__contact__field_para_business_website
+    field:  field_p_business_information.entity.field_para_business_website
+
+
+
+  # LISTS
+
+  - name: construct__contact__field_p_contact_address__city
+    redirect: contact.entity
+    table: paragraph__field_para_address_city
+    field: field_para_address_city_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact city
+
+  - name: construct__contact__field_p_contact_address__country
+    redirect: contact.entity
+    table: paragraph__field_para_address_country
+    field: field_para_address_country_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact country
+
+  - name: construct__contact__field_p_contact_address__epsgx
+    redirect: contact.entity
+    table: paragraph__field_para_address_epsg_x
+    field: field_para_address_epsg_x_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact epsg x
+
+  - name: construct__contact__field_p_contact_address__epsgy
+    redirect: contact.entity
+    table: paragraph__field_para_address_epsg_y
+    field: field_para_address_epsg_y_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact epsg y
+
+  - name: construct__contact__field_p_contact_address__housenr
+    redirect: contact.entity
+    table: paragraph__field_para_address_housenr
+    field: field_para_address_housenr_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact house number
+
+  - name: construct__contact__field_p_contact_address__latitude
+    redirect: contact.entity
+    table: paragraph__field_para_address_latitude
+    field: field_para_address_latitude_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact Latitude
+
+  - name: construct__contact__field_p_contact_address__longitude
+    redirect: contact.entity
+    table: paragraph__field_para_address_longitude
+    field: field_para_address_longitude_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact Longitude
+
+  - name: construct__contact__field_p_contact_address__postalcode
+    redirect: contact.entity
+    table: paragraph__field_para_address_postalcode
+    field: field_para_address_postalcode_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact postal code
+
+  - name: construct__contact__field_p_contact_address__province
+    redirect: contact.entity
+    table: paragraph__field_para_address_province
+    field: field_para_address_province_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact province
+
+  - name: construct__contact__field_p_contact_address__street
+    redirect: contact.entity
+    table: paragraph__field_para_address_street
+    field: field_para_address_street_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact street
+
+#  - name: construct__contact__body
+
+# business paragraph
+  - name: construct__contact__field_p_business_information__bank1
+    table: paragraph__field_para_business_bank1
+    field: field_para_business_bank1_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact bank
+
+  - name: construct__contact__field_p_business_information__brandname
+    table: paragraph__field_para_business_brandname
+    field: field_para_business_brandname_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact brand name
+
+
+
+  - name: construct__filter_group__contact_business_information
+    type: IGNORE
+
+  - name: construct__contact__field_p_business_information__establish_yr
+    table: paragraph__field_para_business_establish_yr
+    field: field_para_business_establish_yr_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Year of establishment
+
+  - name: construct__contact__field_p_business_information__no_employes
+    table: paragraph__field_para_business_no_employees
+    field: field_para_business_no_employees_value
+    redirect: contact.entity
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Number of Employees
+
+  - name: construct__contact__field_p_business_information__registration
+    table: paragraph__field_para_business_registration
+    field: field_para_business_registration_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Chambre of Commerce no.
+
+  - name: construct__contact__field_p_business_information__companyname
+    table: paragraph__field_para_business_companyname
+    field: field_para_business_companyname_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Company name
+##########################################!!!!!!
+  - name: construct__contact__field_p_business_information__contacts
+    table: paragraph__field_para_business_contacts
+    field: field_para_business_contacts_target_id
+    redirect: contact.entity
+# todo add this
+    use_filter: ENTITY_VALUE
+    user_label:
+      en: Contacts
+##########################################!!!!!!!!!
+  - name: construct__contact__field_p_business_information__chain_link
+    table: paragraph__field_para_business_chain_link
+    field: field_para_business_chain_link_target_id
+    redirect: contact.entity
+    # todo add this
+    use_filter: ENTITY_VALUE
+    user_label:
+      en: Chains
+
+  - name: construct__contact__field_p_business_information__nacebel
+    table: paragraph__field_para_business_nacebel
+    field: field_para_business_nacebel_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Nacebel code
+
+  - name: construct__contact__field_p_business_information__chain_name
+    table: paragraph__field_para_business_chain_name
+    field: field_para_business_chain_name_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Chain name
+
+  - name: construct__contact__field_p_business_information__type
+    table: paragraph__field_para_business_type
+    field: field_para_business_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Business type
+
+  - name: construct__contact__field_p_business_information__vat_number
+    table: paragraph__field_para_business_vat_number
+    field: field_para_business_vat_number_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: VAT Number
+
+  - name: construct__contact__field_p_business_information__website
+    table: paragraph__field_para_business_website
+    field: field_para_business_website_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Website
+
+# contact -> contact_paragraph
+  - name: construct__filter_group__contact__field_contact_data
+# field    field_para_contact_mail_ref:
+# field   field_para_contact_phone_ref:
+
+# contact -> contact_paragraph -> contact_email_paragraph
+  # contact -> contact_paragraph -> contact_email_paragraph
+  - name: construct__contact__field_contact_data__subscriber_id
+    table: paragraph__field_para_contact_subscriber_id
+    field: field_para_contact_subscriber_id_target_id
+    redirect: contact.entity
+    use_filter: UID_VALUE
+    user_label:
+      en: Subscriber ID
+
+  - name: construct__contact__field_contact_data__email_address
+    table: paragraph__field_para_contact_email_address
+    field: field_para_contact_email_address_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email address
+
+  - name: construct__contact__field_contact_data__email_instructions
+    table: paragraph__field_para_contact_email_instruc
+    field: field_para_contact_email_instruc_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email instructions
+
+  - name: construct__contact__field_contact_data__email_type
+    table: paragraph__field_para_contact_email_type
+    field: field_para_contact_email_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact email type
+
+# field   field_para_contact_phone_ref:
+# contact -> contact_paragraph -> phone_paragraph
+  - name: construct__contact__field_contact_data__phone_instructions
+    table: paragraph__field_para_phone_instructions
+    field: field_para_phone_instructions_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone instructions
+
+  - name: construct__contact__field_contact_data__phone_number
+    table: paragraph__field_para_phone_number
+    field: field_para_phone_number_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone number
+
+  - name: construct__contact__field_contact_data__phone_type
+    table: paragraph__field_para_phone_type
+    field: field_para_phone_type_value
+    redirect: contact.entity
+    use_filter: STRING_VALUE
+    user_label:
+      en: Contact phone type
+
+# contact -> contact_paragraph -> financials_paragraph
+#  - name: construct__contact__field_para_ref_financials__reference
+#    redirect: contact.entity
+#    table: paragraph__field_para_fin_d_reference
+#    field: field_para_fin_d_reference_target_id
+#    use_filter: ENTITY_VALUE
+#    user_label:
+#      en: Financials reference
+
+  - name: construct__contact__field_para_ref_financials__latest_bookyear
+    redirect: contact.entity
+    table: paragraph__field_para_fin_latest_bookyear
+    field: field_para_fin_latest_bookyear_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials latest book year
+
+  - name: construct__contact__field_para_ref_financials__summary
+    redirect: contact.entity
+    table: paragraph__field_para_fin_summary
+    field: field_para_fin_summary_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials summary
+
+
+  - name: construct__contact__field_para_ref_financials__registration_year
+    redirect: contact.entity
+    table: paragraph__field_para_fin_registration_year
+    field: field_para_fin_registration_year_value
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Financials registration year
+
+# # contact -> contact_paragraph -> financials_paragraph -> financials_details_paragraph
+  - name: construct__contact__field_para_ref_financials__details_bookyear
+    redirect: contact.entity
+    table: paragraph__field_field_para_fin_d_bookyear
+    field: field_field_para_fin_d_bookyear_value
+    use_filter: INTEGER_VALUE
+    user_label:
+      en: Bookyear
+      nl: Boekjaar
+
+  - name: construct__contact__field_para_ref_financials__details_equity
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_equity
+    field: field_para_fin_d_equity_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials equity
+      nl: Eigen vermogen
+
+  - name: construct__contact__field_para_ref_financials__details_profit_loss
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_profit_loss
+    field: field_para_fin_d_profit_loss_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials Profit and Loss
+
+  - name: construct__contact__field_para_ref_financials__details_revenue
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_revenue
+    field: field_para_fin_d_revenue_value
+    use_filter: FINANCIAL_VALUE
+    user_label:
+      en: Financials Revenue
+
+  - name: construct__contact__field_para_ref_financials__details_source
+    redirect: contact.entity
+    table: paragraph__field_para_fin_d_source
+    field: field_para_fin_d_source_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Financials source
+
+
+  # contact -> paragraph_openstreetmap
+  - name: construct__contact__field_p_openstreetmap__property_type
+    redirect: contact.entity
+    field: field_para_osm_property_type_value
+    table: paragraph__field_para_osm_property_type
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map property type
+
+
+  - name: construct__contact__field_p_openstreetmap__city_district
+    redirect: contact.entity
+    field: field_para_osm_city_district_value
+    table: paragraph__field_para_osm_city_district
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map city district
+
+  - name: construct__contact__field_p_openstreetmap__class
+    redirect: contact.entity
+    field: field_para_osm_class_value
+    table: paragraph__field_para_osm_class
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map property class
+
+  - name: construct__contact__field_p_openstreetmap__id
+    redirect: contact.entity
+    field: field_para_osm_id_value
+    table: paragraph__field_para_osm_id
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map Id
+
+  - name: construct__contact__field_p_openstreetmap__country
+    redirect: contact.entity
+    field: field_para_osm_country_value
+    table: paragraph__field_para_osm_country
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map country
+
+  - name: construct__contact__field_p_openstreetmap__country_code
+    redirect: contact.entity
+    field: field_para_osm_country_code_value
+    table: paragraph__field_para_osm_country_code
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map country code
+
+  - name: construct__contact__field_p_openstreetmap__hamlet
+    redirect: contact.entity
+    field: field_para_osm_hamlet_value
+    table: paragraph__field_para_osm_hamlet
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map hamlet
+
+  - name: construct__contact__field_p_openstreetmap__house_number
+    redirect: contact.entity
+    field: field_para_osm_house_number_value
+    table: paragraph__field_para_osm_house_number
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map house number
+# iso something
+#  - name: construct__contact__field_p_openstreetmap__
+# iso something 2
+#  - name: construct__contact__field_p_openstreetmap__
+
+  - name: construct__contact__field_p_openstreetmap__municipality
+    redirect: contact.entity
+    field: field_para_osm_municipality_value
+    table: paragraph__field_para_osm_municipality
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map municipality
+
+  - name: construct__contact__field_p_openstreetmap__postalcode
+    redirect: contact.entity
+    field: field_para_osm_postalcode_value
+    table: paragraph__field_para_osm_postalcode
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map postal code
+
+  - name: construct__contact__field_p_openstreetmap__road
+    redirect: contact.entity
+    field: field_para_osm_road_value
+    table: paragraph__field_para_osm_road
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map road
+
+  - name: construct__contact__field_p_openstreetmap__state
+    redirect: contact.entity
+    field: field_para_osm_state_value
+    table: paragraph__field_para_osm_state
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map state
+
+  - name: construct__contact__field_p_openstreetmap__tourism
+    redirect: contact.entity
+    field: field_para_osm_tourism_value
+    table: paragraph__field_para_osm_tourism
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map tourism
+
+  - name: construct__contact__field_p_openstreetmap__village
+    redirect: contact.entity
+    field: field_para_osm_village_value
+    table: paragraph__field_para_osm_village
+    use_filter: STRING_VALUE
+    user_label:
+      en: Map village
+
+# contact -> personal_paragraph
+  - name: construct__contact__field_p_personal__birth_date
+    redirect: contact.entity
+    table: paragraph__field_para_personal_birth_date
+    field: field_para_personal_birth_date_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal birth date
+
+  - name: construct__contact__field_p_personal__firstname
+    redirect: contact.entity
+    table: paragraph__field_para_personal_firstname
+    field: field_para_personal_firstname_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal first name
+
+  - name: construct__contact__field_p_personal__id
+    redirect: contact.entity
+    table: paragraph__field_para_personal_id
+    field: field_para_personal_id_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal id
+
+  - name: construct__contact__field_p_personal__initials
+    redirect: contact.entity
+    table: paragraph__field_para_personal_initials
+    field: field_para_personal_initials_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal initials
+
+  - name: construct__contact__field_p_personal__job_title
+    redirect: contact.entity
+    table: paragraph__field_para_personal_job_title
+    field: field_para_personal_job_title_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal job title
+
+  - name: construct__contact__field_p_personal__lastname
+    redirect: contact.entity
+    table: paragraph__field_para_personal_lastname
+    field: field_para_personal_lastname_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal last name
+
+  - name: construct__contact__field_p_personal__middlename
+    redirect: contact.entity
+    table: paragraph__field_para_personal_middlename
+    field: field_para_personal_middlename_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal middle name
+
+  - name: construct__contact__field_p_personal__occupation
+    redirect: contact.entity
+    table: paragraph__field_para_personal_occupation
+    field: field_para_personal_occupation_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal occupation
+
+  - name: construct__contact__field_p_personal__salutation
+    redirect: contact.entity
+    table: paragraph__field_para_personal_salutation
+    field: field_para_personal_salutation_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Personal salutation
+
+#contact -> socials_paragraph
+  - name: construct__contact__field_p_socials_apollo
+    redirect: contact.entity
+    table: paragraph__field_para_social_apollo
+    field: field_para_social_apollo_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials Apollo
+
+  - name: construct__contact__field_p_socials_facebook
+    redirect: contact.entity
+    table: paragraph__field_para_social_facebook
+    field: field_para_social_facebook_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials facebook
+
+  - name: construct__contact__field_p_socials_instagram
+    redirect: contact.entity
+    table: paragraph__field_para_social_instagram
+    field: field_para_social_instagram_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Social instagram
+
+  - name: construct__contact__field_p_socials_twitter
+    redirect: contact.entity
+    table: paragraph__field_para_social_twitter
+    field: field_para_social_twitter_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials twitter
+
+  - name: construct__contact__field_p_socials_linkedin
+    redirect: contact.entity
+    table: paragraph__field_para_social_linkedin
+    field: field_para_social_linkedin_value
+    use_filter: STRING_VALUE
+    user_label:
+      en: Socials Linked in
+entity_purchase:
+  ############################################################################################################# PURCHASE
+  - name: purchase.entity
+    type: sql
+    field: body
+    sql: >
+      SELECT base_table.nid AS nid
+      FROM node base_table
+          # data from nodes
+          INNER JOIN node_field_data ON node_field_data.nid = base_table.nid
+          # link to interaction
+          INNER JOIN node__field_listing_interact_log ON node__field_listing_interact_log.entity_id = base_table.nid
+          # interaction records
+          INNER JOIN node ON node.nid = node__field_listing_interact_reference.field_listing_interact_reference_target_id
+          INNER JOIN :TABLE ON :TABLE.entity_id = paragraphs_item.id
+          WHERE (node_field_data.status = '1')
+            AND (node_field_data.type = 'listing')
+            AND :CONDITION
+    conditions:
+      IN:
+      NOT IN:
+      IS NULL:
+      IS NOT NULL:
+      =:
+        lower(:FIELD)=lower(':VALUES')
+      '<>':
+        lower(:FIELD)<>lower(':VALUES')
+      LIKE:
+        lower(:FIELD) LIKE '%:VALUES%'
+      # detecting a ~ in the date value, will make it a BETWEEN condition
+      BETWEEN:
+        STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') >= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', 1), '%Y-%m-%d')
+        and STR_TO_DATE(SUBSTRING_INDEX(:TABLE.:FIELD,'T',1), '%Y-%m-%d') <= STR_TO_DATE(SUBSTRING_INDEX(':VALUES', '~', -1), '%Y-%m-%d')
+      # detecting text input integer selections
+      FROM_TO:
+        # 1021...2012 detects ... in between
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+        and cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      BEFORE:
+        # ...2012 detected by ... in front
+        cast(:TABLE.:FIELD as unsigned) <= cast(SUBSTRING_INDEX(':VALUES', '...', -1) as unsigned)
+      AFTER:
+        # 1021...  detected by ... after it
+        cast(:TABLE.:FIELD as unsigned) >= cast(SUBSTRING_INDEX(':VALUES', '...', 1)  as unsigned)
+    filters:
+      # default action 'what this field can be filtered on'
+      DEFAULT:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      USER_REFERENCE:
+        sql: >
+          select distinct :FIELD as uid from :TABLE
+        fetchKey: uid
+      TAXONOMY_REFERENCE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      # Must return taxonomy level 2, 0 and 1 are above it.
+      TAXONOMY_REFERENCE_0_UP:
+        sql: >
+          select distinct :TABLE.:FIELD as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent tid to return; company campaign canvass return campaigns
+      TAXONOMY_REFERENCE_1_UP:
+        sql: >
+          select distinct parent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      # field has parent which has parent tid to return; company campaign canvass return companies
+      TAXONOMY_REFERENCE_2_UP:
+        sql: >
+          select distinct grandparent.parent_target_id as target_id
+          from taxonomy_term__parent as parent
+          join taxonomy_term__parent as grandparent on grandparent.entity_id = parent.parent_target_id
+          join :TABLE on :TABLE.:FIELD = parent.entity_id
+        fetchKey: target_id
+      STRING_VALUE:
+        sql: >
+          select distinct :FIELD as text from :TABLE
+        fetchKey: text
+      INTEGER_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      TIMESTAMP_VALUE:
+        sql: >
+          select distinct :FIELD as target_id from :TABLE
+        fetchKey: target_id
+      COMPONENT_TEXT_INPUT:
+        component:
+          redirect: component__text_input
+      COMPONENT_DATE_INPUT_FROM_TO:
+        component:
+          redirect: component__date_input_from_to
+
+
+  - name: purchases
+  - name: field_purchase_mutation_date
+  - name: field_purchase_request_date
+  - name: field_purchase_account
+  - name: field_purchase_details
+  - name: paragraph_purchase_details
+  - name: field_purchase_permission_status
+  - name: field_purchase_product_paragraph
+  - name: field_purchase_transaction_date
+  - name: field_purchase_listing
+  - name: field purchase_payment_status
+entity_invoice:
+  ############################ INVOICE
+  # INVOICE CONTACT FIELDS
+
+  - name: field__invoice__client_company__field_para_address_city
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_city
+
+  - name: field__invoice__client_company__field_para_address_country
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_country
+    user_label:
+      en: Country
+    aggrid:
+      redirect: aggrid_html_field
+
+  - name: field__invoice__client_company__field_para_address_epsg_x
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_epsg_x
+
+  - name: field__invoice__client_company__field_para_address_epsg_y
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_epsg_y
+
+  - name: field__invoice__client_company__field_para_address_housenr
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_housenr
+
+  - name: field__invoice__client_company__field_para_address_latitude
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_latitude
+
+  - name: field__invoice__client_company__field_para_address_longitude
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_longitude
+
+  - name: field__invoice__client_company__field_para_address_postalcode
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_postalcode
+
+  - name: field__invoice__client_company__field_para_address_province
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_province
+
+  - name: field__invoice__client_company__field_para_address_street
+    field:  field_invoice_client_company.entity.field_p_contact_address.entity.field_para_address_street
+
+  ## BUSINESS PARAGRAPH
+  - name: field__invoice__client_company__field_para_business_bank1
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_bank1
+
+  - name: field__invoice__client_company__field_para_business_brandname
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_brandname
+    user_label:
+      en: Company
+    aggrid:
+      redirect: aggrid_html_field
+
+  - name: field__invoice__client_company__field_para_business_establish_yr
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_establish_yr
+
+  - name: field__invoice__client_company__field_para_business_icon
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_icon
+
+  - name: field__invoice__client_company__field_para_business_logo
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_logo
+
+  - name: field__invoice__client_company__field_para_business_no_employees
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_no_employees
+
+  - name: field__invoice__client_company__field_para_business_registration
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_registration
+
+  - name: field__invoice__client_company__field_para_business_companyname
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_companyname
+
+  - name: field__invoice__client_company__field_para_business_contacts
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_contacts
+
+  - name: field__invoice__client_company__field_para_business_chain_link
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_chain_link
+
+  - name: field__invoice__client_company__field_para_business_nacebel
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_nacebel
+
+  - name: field__invoice__client_company__field_para_business_chain_name
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_chain_name
+
+  - name: field__invoice__client_company__field_para_business_type
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_type
+
+  - name: field__invoice__client_company__field_para_business_vat_number
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_vat_number
+
+  - name: field__invoice__client_company__field_para_business_website
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_website
+
+  - name: invoice
+
+  - name: field__invoice__field_p_business_information__brandname
+    field: field_invoice_client_company.entity.field_p_business_information.entity.field_para_business_brandname
+
+
+  - name: field__invoice__field_invoice_introduction_text
+    field: field_invoice_introduction_text
+
+  - name: field__invoice__field_invoice_body
+    field: field_invoice_body
+    user_label:
+      en: Invoice information
+    aggrid:
+      redirect: aggrid_html_field
+
+  - name: field__invoice__field_invoice_id
+    field: field_invoice_id
+    aggrid:
+      redirect: aggrid_html_field
+    user_label:
+      en: Invoice id
+
+  - name:  field__invoice__field_invoice_due_date
+    field: field_invoice_due_date
+
+  - name: field__invoice__field_invoice_sum_total_ex_tax
+    field: field_invoice_sum_total_ex_tax
+    tippy:
+      en: The invoice sum excluding the VAT
+    user_label:
+      en: Sum (Excl. VAT)
+    aggrid:
+      redirect: aggrid_money_field
+
+  - name: field__invoice__field_invoice_overdue_interest
+    # field in invoice entity
+    field: field_invoice_overdue_interest
+    tippy:
+      en: The interest amount calculated on the overdue open amount.
+    user_label:
+      en: "Overdue interest"
+    aggrid:
+      redirect: aggrid_money_field
+
+  - name: field__invoice__field_sum_ex_vat_incl_interest
+    field: field_sum_ex_vat_incl_interest
+    tippy:
+      en: The invoice sum added overdue payment interest but excluding VAT
+    user_label:
+      en: "Sum (ex. VAT, incl. Interest)"
+    aggrid:
+      # re-uses field=name,tooltip=tippy,headerName=user_label
+      redirect: aggrid_money_field
+
+
+  - name: field__invoice__field_sum_incl_interest_inc_vat
+    field: field_sum_incl_interest_inc_vat
+    tippy:
+      en: The invoice sum with overdue payment interest and including VAT
+    user_label:
+      en: "Sum (incl. VAT, incl. Interest)"
+    aggrid:
+      redirect: aggrid_money_field
+
+  - name: field__invoice__field_invoice_status__standard_term
+    field: field_invoice_status
+    type: vocabulary
+
+  # invoice_payments_paragraph
+  - name: field__invoice_paid__field_amount
+    field: field_invoice_payments_paragraph.entity.field_amount
+
+  - name: field__invoice_paid__field_from_bank_account
+    field: field_invoice_payments_paragraph.entity.field_from_bank_account
+
+  - name: field__invoice_paid__field_notes
+    field: field_invoice_payments_paragraph.entity.field_notes
+
+  - name: field__invoice_paid__field_payment_date
+    field: field_invoice_payments_paragraph.entity.field_payment_date
+
+
+taxonomy:
+  ############################################################################################################# TAXONOMIES
+  # notice, two with same name, using different fields.
+  # field listing interaction status
+  - name: interaction_status_tags
+    # when 'the same taxonomy' is used by 'multiple fields'
+    # this alternative should be in the name of another parent term in the chain
+    # When the entry is being retrieved, the code will  check for alternatives using the chain
+    # (a hierarchical select will contain the parent term from FEFQ taxonomy, which identifies this entry)
+    # Example: construct__interaction_status_tags__field_para_interaction_status
+    alternatives:
+      - construct__interaction_status_tags__field_para_interaction_status_0
+    type: vocabulary
+    vocabulary: interaction_status_tags
+    hierarchical: false
+    field: field_listing_interact_sts_tags
+    conditions:
+      - IN
+      - IS NOT NULL
+
+  # listing log paragraph field
+  # note uses, same taxonomy as field_listing_interact_sts_tags
+  # where it is mentioned as alternative, as the taxonomy is found in that element first.
+  - name: construct__interaction_status_tags__field_para_interaction_status_0
+    type: vocabulary
+    vocabulary: interaction_status_tags
+    hierarchical: false
+    field: field_listing_interact_log.entity.field_para_interaction_status
+    # condition when tid using name is the vocabulary itself
+    # condition when tid using name is from fefq vocabulary and results in: 'IS NOT NULL'
+    # isFEFQ: false|true is set in class
+    conditions:
+      - IN
+
+  - name: interaction_status_tags
+    type: vocabulary
+    vocabulary: interaction_status_tags
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+    field: field_listing_interact_log.entity.field_para_interaction_status
+
+  - name: company_campaign_canvas_tags
+    type: vocabulary
+    vocabulary: company_campaign_canvas_tags
+    # listing has 'canvass' field,
+    # which has 'campaign' and 'company' parents,
+    # so the field itself is at base_level:2.
+    hierarchical: true
+    # the field contains, tids from hierarchy level 2
+    # canvass
+    base_level: 2
+    conditions:
+      - IN
+      - IS NOT NULL
+    user_label:
+      en:
+        -1: 'Campaign and Canvass'
+        0: 'Company'
+        1: 'Campaign'
+        2: 'Canvass'
+    field: field_listing_canvas_tags
+    alternatives:
+      - construct__hierarchical_select__field_para_interaction_canvass
+  #
+  - name: construct__filter_group__campaign
+    redirect: company_campaign_canvas_tags
+    # campaigns are parent of canvass in the field
+    depth: 1
+
+  - name: construct__company_campaign_canvas_tags__company_0
+    redirect: company_campaign_canvas_tags
+    # company are grandparent of canvass in the field
+    depth: 0
+
+  - name: construct__company_campaign_canvas_tags__campaign_1
+    redirect: company_campaign_canvas_tags
+    # campaigns are parent of canvass (canvass is in the listing field)
+    depth: 1
+
+  - name: construct__company_campaign_canvas_tags__canvass_2
+    redirect: company_campaign_canvas_tags
+    # canvasses are in the listing field
+    depth: 2
+  #
+  # note, the city is in the listing
+  - name: listing_locations
+    type: vocabulary
+    vocabulary: listing_locations
+    # listing has city field,
+    # which has province->country parents,
+    # so the field itself is at base_level 2.
+    hierarchical: true
+    # the field contains, tids from hierarchy level 2 (city is stored in field)
+    base_level: 2
+    conditions:
+      - IN
+      - IS NOT NULL
+    user_label:
+      en:
+        -1: 'Location'
+        0: 'country'
+        1: 'province'
+        2: 'city'
+    # field_tid depth given the tid in listing is at depth x, find node elders
+    field: field_listing_location
+
+  - name: construct__listing_locations__country_0
+    redirect: listing_locations
+    # use field level, parent, parent
+    depth: 0
+
+  - name: construct__listing_locations__province_1
+    redirect: listing_locations
+    # use field level, parent
+    depth: 1
+
+  - name: construct__listing_locations__city_2
+    redirect: listing_locations
+    # use field level 0
+    depth: 2
+
+  - name: team_tags
+    type: vocabulary
+    vocabulary: team_tags
+    hierarchical: true
+    conditions:
+      - IN
+      - IS NOT NULL
+    # when using count or retrieve, this will query the interaction log entries for the selected 'member' field.
+    field:  field_listing_interact_log.entity.field_para_interaction_member
+
+  - name: construct__team_tags__company_0
+    redirect: team_tags
+    depth: 0
+
+  - name: construct__team_tags__team_1
+    redirect: team_tags
+    depth: 1
+
+  - name: construct__team_tags__user_2
+    redirect: team_tags
+    depth: 2
+
+
+  - name: field_listing_nacebel_code
+    type: vocabulary
+    hierarchical: true
+    field: field_listing_nacebel_code
+    depth: 0
+    conditions:
+      - IN
+      - IS NOT NULL
+
+
+  - name: listing_status
+    type: vocabulary
+    hierarchical: false
+    field: field_listing_status
+    conditions:
+      - IN
+      - IS NOT NULL
+
+  - name: amenities
+    type: vocabulary
+    vocabulary: amenities
+    hierarchical: false
+    field: field_listing_amenities
+    conditions:
+      - IN
+      - IS NOT NULL
+
+
+  - name: listing_tags
+    type: vocabulary
+    vocabulary: listing_tags
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+
+  - name: listing_stars
+    type: vocabulary
+    vocabulary: listing_stars
+    hierarchical: false
+    field: field_listing_stars_ref
+    conditions:
+      - IN
+      - IS NOT NULL
+      - =
+      - <>
+
+  - name: chain_name
+    type: vocabulary
+    vocabulary: chain_name
+    hierarchical: true
+    conditions:
+      - IN
+      - IS NOT NULL
+    field: field_listing_chain
+
+  - name: supplier_of
+    type: vocabulary
+    vocabulary: supplier_of
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+    field: field_listing_supplier_of
+
+  - name: listing_category
+    type: vocabulary
+    vocabulary: listing_category
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+    field: field_listing_category
+
+  - name: admin_purchase_status
+    type: vocabulary
+    vocabulary: admin_purchase_status
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+      -
+  - name: admin_purchase_products
+    type: vocabulary
+    vocabulary: admin_purchase_products
+    hierarchical: false
+    conditions:
+      - IN
+      - IS NOT NULL
+aggrid_shared_definitions:
+############################ AGGRID DEFAULTS
+# These are defaults for field display and editing,
+# override on individual field level or in the form:
+# using `header=['data'=headerName, 'class'=>['aggrid_money_field','ag-width-100'],'tippy'=>$headerTooltip]`
+# When the field in the form is known in the YML no additional information needs be provided.
+# enum_field->value=>[]
+# When the field is not in the form provide the aggrid information via the class transformation
+#  which is compatible with Drupal table select.
+#
+# note the parser uses (when not found on the yml entry):
+#  headerTooltip : tippy.en
+#  headerName : user_label.en
+
+  # id field, renders a spinner when loading
+  - name: aggrid_id_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 110
+          headerTooltip: aggrid_id_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agTextCellEditor
+          cellEditorParams:
+            maxLength: 20
+          cellRenderer: IdCellRenderer
+          #rowClassRules:
+      class:
+        - id-column
+
+  # money field, makes it display as € 999.999,00
+  - name: aggrid_money_field
+    aggrid:
+      gridOptions:
+        # options
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 50
+          # headerTooltip: ''
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          #
+          cellDataType: number
+          #
+          cellEditor: agNumberCellEditor
+          cellEditorParams:
+            maxLength: 50
+          #
+          cellRenderer: CurrencyCellRenderer
+          # note. this works due to aggrid.js adding it to the gridOptions
+          valueSetter: currencySetter
+          valueParser: currencyParser
+          #
+          #rowClassRules:
+          #cellStyle: 'text-align: right'
+          sortable: true
+          # note. this works due to aggrid.js adding it to the gridOptions
+          comparator: currencyComparator
+      class: money-column
+
+  # link field, makes it a button with the link
+  - name: aggrid_link_field
+    aggrid:
+      gridOptions:
+        # options
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 110
+          headerTooltip: aggrid_link_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          #
+          cellDataType: text
+          #
+          cellEditor: agTextCellEditor
+          cellEditorParams:
+            maxLength: 120
+
+          #
+          cellRenderer: LinkCellRenderer
+          # note. this works due to aggrid.js adding it to the gridOptions
+          # valueSetter: linkSetter
+          # valueParser: linkParser
+          #
+          #rowClassRules:
+          #cellStyle: 'text-align: right'
+          sortable: true
+          # note. this works due to aggrid.js adding it to the gridOptions
+          # comparator: linkComparator
+      class:
+        -link-column
+
+  # html field, interprets markup
+  - name: aggrid_html_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 50
+          headerTooltip: aggrid_html_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agTextCellEditor
+          cellEditorParams:
+            maxLength: 20
+          cellRenderer: HTMLCellRenderer
+          # rowClassRules:
+      class: html-column
+
+  # date field, displays as YYYY-MM-DD
+  - name: aggrid_date_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 50
+          headerTooltip: aggrid_date_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: date
+          cellEditor: agDateCellEditor
+          # cellEditorParams:
+          #  maxLength: 20
+          cellRenderer: YYYYMMDDCellRenderer
+          # rowClassRules:
+      class:
+        - date-column
+
+  - name: aggrid_datestring_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 115
+          headerTooltip: aggrid_datestring_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: dateString
+          cellEditor: agDateStringCellEditor
+          #cellEditorParams:
+          #  maxLength: 20
+          cellRenderer: YYYYMMDDCellRenderer
+          # rowClassRules:
+      class:
+          - datastring-column
+
+# button_field, makes it a button with a modal display
+  - name: aggrid_button_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 100
+          headerTooltip: aggrid_button_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agDateStringCellEditor
+          #cellEditorParams:
+          #  maxLength: 20
+          cellRenderer: ButtonCellRenderer
+          cellRendererParams:
+            button_title: 'Info'
+            modal_title:  'Info'
+          # rowClassRules:
+      class:
+        - button-column
+
+# button_tooltip, makes it a button on hover tooltip
+  - name: aggrid_button_tooltip_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 100
+          headerTooltip: aggrid_button_tooltip_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agDateStringCellEditor
+          #cellEditorParams:
+          #  maxLength: 20
+          cellRenderer: ButtonTooltipCellRenderer
+          cellRendererParams:
+            button_title: 'Info'
+            modal_title:  'Info'
+          tooltipComponent: AgTooltip
+          tooltipComponentParams:
+            color: #55AA77
+
+          # rowClassRules:
+      class:
+        - button-tooltip-column
+
+  - name: aggrid_boolean_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 50
+          headerTooltip: aggrid_boolean_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: boolean
+          # cellEditor:
+          # cellEditorParams:
+          #  maxLength: 20
+          cellRenderer: agCheckboxCellRenderer
+          cellRendererParams:
+            disabled: TRUE
+          # rowClassRules:
+      class:
+        - boolean-column
+
+  - name: aggrid_large_text_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 100
+          headerTooltip: aggrid_large_text_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agLargeTextCellEditor
+          cellEditorParams:
+            maxLength: 250
+            rows: 3
+            cols: 50
+          # cellRenderer:
+      class:
+        - large-text-column
+
+  - name: aggrid_select_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 100
+          headerTooltip: aggrid_select_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          # cellDataType: text
+          cellEditor: agSelectCellEditor
+          cellEditorParams:
+# this is detected and makes from standardisedTerms a c.s. list of labels.
+            values: parse_terms
+          # cellRenderer:
+      class:
+        - select-column
+        -
+# system_field, stores values display none.
+  - name: aggrid_system_field
+    aggrid:
+      gridOptions:
+        columnDefs:
+          # headerName: headerName
+          # field: none
+          editable: TRUE
+          width: 100
+          headerTooltip: aggrid_system_field
+          # checkboxSelection: checkboxSelection
+          # pinned: left
+          # lockPinned: TRUE
+          # rowDrag: TRUE
+          cellDataType: text
+          cellEditor: agLargeTextCellEditor
+          cellEditorParams:
+            maxLength: 250
+            rows: 3
+            cols: 50
+          # cellRenderer:
+      class:
+        - system-column
+component:
+  # displays a text input component
+  # a component definition from the admin_buttons taxonomy (to be renamed to components)
+  # uses BMComponents, Components\templates\text-input.html.twig
+
+  # special filters:
+  # %text% becomes LIKE %text%%
+  # uses FROM_TO, AFTER, BEFORE when text input contains ...
+  # "dddd...eeee", "dddd...", "...eeee"
+  # @see BMListingFEFQInterface line 563
+  - name: component__text_input
+    component:
+      # text-input.html.twig
+      name: text-input
+      type: fefq-component
+      user_label:
+        en: 'Enter search text'
+        nl: 'Zoek tekst'
+        fr: 'Saisie de texte'
+      placeholder:
+        en: 'contains this text'
+        nl: 'bevat deze tekst'
+        fr: 'contient ce texte'
+      tippy:
+        en: 'Enter the text which occurs in the search field. <br>use for text: %text%<br> use for ids: 9999..., ....9999, 9999...9999'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+
+  # displays a single date entry component
+  # text containing ~ is interpreted as from~to
+  - name: component__date_input
+    component:
+      # date-input.html.twig
+      name: date-input
+      type: fefq-component
+      user_label:
+        en: 'Enter a date'
+        nl: 'Een datum'
+        fr: 'Saisie ?'
+      placeholder:
+        en: 'YYYY-MM-DD'
+        nl: 'jjjj-mm-dd'
+        fr: 'YYYY-MM-DD'
+      tippy:
+        en: 'Enter the date'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+  #
+  # - 2022-11-15T10:06:00+0100
+  # - redirect: component__date_time_input_from_to
+  #
+  # displays a from-date-entry and a to-date-entry component
+  - name: component__date_input_from_to
+    component:
+      # date-input-from-to.html.twig
+      name: date-input-from-to
+      type: fefq-component
+      user_label:
+        en: 'Enter from and to date'
+        nl: 'Datum van tot'
+        fr: 'Saisie ?'
+      placeholder:
+        en: 'YYYY-MM-DD'
+        nl: 'jjjj-mm-dd'
+        fr: 'YYYY-MM-DD'
+      tippy:
+        en: 'Enter the first and last dates'
+        nl: 'Type de tekst die in voor moet komen in het veld.'
+        fr: 'Tapez le texte qui doit figurer.'
+
+  - name: construct__component__text_input
+    redirect: component__text_input
+
+  - name: construct__component__date_input_from_to
+    redirect: component__date_input_from_to
+
+
+other:
+  # currently in fefq taxonomy, was created for 'leaflet maps' to get main groups to retrieve markers for
+  # todo needs to be transformed to version 2, method.
+
+  - name: construct_campaign
